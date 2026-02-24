@@ -16,7 +16,11 @@ def test_bridge_import_smoke():
         )
     except subprocess.TimeoutExpired as e:
         # A timeout means the server started and blocked successfully.
-        assert "ModuleNotFoundError" not in e.stdout and "ModuleNotFoundError" not in e.stderr, "Found ModuleNotFoundError despite timeout"
+        # e.stdout / e.stderr are None when no input was provided, so guard with `or ""`.
+        stdout = e.stdout or ""
+        stderr = e.stderr or ""
+        assert "ModuleNotFoundError" not in stdout and "ModuleNotFoundError" not in stderr, \
+            "Found ModuleNotFoundError despite timeout"
         return
         
     # If it didn't timeout, it crashed immediately. Check why.
