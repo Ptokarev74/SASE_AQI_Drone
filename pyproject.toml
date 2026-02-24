@@ -1,5 +1,5 @@
 [project]
-name = "bridge"
+name = "aqi-bridge"
 version = "1.0.0"
 description = "BLE-to-WebSocket Bridge for AQI Drone"
 requires-python = ">=3.12"
@@ -15,6 +15,10 @@ dependencies = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["apps/aqi-bridge/tests"]
+filterwarnings = [
+    "ignore:The 'app' shortcut is now deprecated:DeprecationWarning",
+]
 
 [tool.mypy]
 python_version = "3.12"

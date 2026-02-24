@@ -10,6 +10,9 @@ jobs:
   test:
     name: Lint & Test
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/aqi-bridge
 
     steps:
       - name: Checkout code
@@ -20,13 +23,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-          cache-dependency-path: bridge/requirements.txt
+          cache-dependency-path: apps/aqi-bridge/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r bridge/requirements.txt pytest pytest-asyncio ruff httpx
+        run: pip install -r requirements.txt pytest pytest-asyncio ruff httpx
 
       - name: Lint with ruff
-        run: ruff check bridge/ tests/
+        run: ruff check aqi_bridge/ tests/
 
       - name: Run test suite
         env:
@@ -43,4 +46,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t sase-aqi-bridge:ci .
+        run: docker build -t sase-aqi-bridge:ci apps/aqi-bridge/
