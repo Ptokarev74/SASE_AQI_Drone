@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  bridge:
+    build: .
+    restart: always
+    network_mode: host  # Required for BLE access via D-Bus on Linux
+    environment:
+      - PYTHONPATH=.
+      - WS_AUTH_MODE=required
+      - WS_AUTH_TOKEN=${WS_AUTH_TOKEN:-default-secret-token}
+      - ALLOW_TOKEN_ROTATION=true
+      - LOG_FORMAT=json
+      - LOG_LEVEL=INFO
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/certs:ro
+    depends_on:
+      - bridge

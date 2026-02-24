@@ -5,10 +5,9 @@ Simulates fragmented, bunched, and malformed BLE notifications to ensure
 the reassembly buffer in BLEDroneClient is robust.
 """
 
-import json
 import logging
+
 from bridge.ble_client import BLEDroneClient
-from bridge.schemas import TelemetryMessage
 
 # Setup minimal logging to see frame extractions
 logging.basicConfig(level=logging.DEBUG)
@@ -74,7 +73,7 @@ if __name__ == "__main__":
     try:
         test_reassembly()
         print("\nALL REASSEMBLY TESTS PASSED")
-    except AssertionError as e:
-        print(f"\nTEST FAILED")
+    except AssertionError:
+        print("\nTEST FAILED")
         import traceback
         traceback.print_exc()
