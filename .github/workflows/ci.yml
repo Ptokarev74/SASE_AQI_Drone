@@ -23,7 +23,7 @@ jobs:
           cache-dependency-path: bridge/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r bridge/requirements.txt pytest pytest-asyncio ruff
+        run: pip install -r bridge/requirements.txt pytest pytest-asyncio ruff httpx
 
       - name: Lint with ruff
         run: ruff check bridge/ tests/
