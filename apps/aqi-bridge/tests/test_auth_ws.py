@@ -197,9 +197,8 @@ def test_health_auth_fields():
     print("\n--- Auth Test 13: /health endpoint exposes auth fields ---")
     from unittest.mock import MagicMock
 
-    from fastapi.testclient import TestClient
-
     import aqi_bridge.config as cfg
+    from fastapi.testclient import TestClient
     importlib.reload(cfg)
     import aqi_bridge.api as srv
     importlib.reload(srv)
@@ -284,9 +283,8 @@ def test_tls_reverse_proxy_validation():
     print("\n--- Auth Test 16: WS client validates behind TLS termination proxy ---")
     from unittest.mock import MagicMock
 
-    from fastapi.testclient import TestClient
-
     import aqi_bridge.config as cfg
+    from fastapi.testclient import TestClient
     importlib.reload(cfg)
     import aqi_bridge.api as srv
     importlib.reload(srv)

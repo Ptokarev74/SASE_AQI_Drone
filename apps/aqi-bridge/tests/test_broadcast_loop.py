@@ -17,12 +17,11 @@ import logging
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-from starlette.websockets import WebSocketState
-
+from aqi_bridge.api import broadcast_telemetry_loop
 from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.config import WS_SEND_TIMEOUT_S
 from aqi_bridge.models import TelemetryMessage
-from aqi_bridge.api import broadcast_telemetry_loop
+from starlette.websockets import WebSocketState
 
 logging.basicConfig(level=logging.DEBUG)
 

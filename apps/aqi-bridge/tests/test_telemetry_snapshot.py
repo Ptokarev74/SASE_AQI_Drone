@@ -17,9 +17,8 @@ import asyncio
 import json
 
 import pytest
-from pydantic import ValidationError
-
 from aqi_bridge.models import GyroReading, Position, TelemetryMessage
+from pydantic import ValidationError
 
 
 # ---------------------------------------------------------------------------

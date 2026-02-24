@@ -10,11 +10,10 @@ import asyncio
 import time
 from unittest.mock import MagicMock
 
-from fastapi.testclient import TestClient
-
-from aqi_bridge.config import LOOP_STARVATION_THRESHOLD_S, MAX_WS_CLIENTS
-from aqi_bridge.app import event_loop_watchdog
 from aqi_bridge.api import create_app
+from aqi_bridge.app import event_loop_watchdog
+from aqi_bridge.config import LOOP_STARVATION_THRESHOLD_S, MAX_WS_CLIENTS
+from fastapi.testclient import TestClient
 
 
 def test_max_ws_clients_enforced():

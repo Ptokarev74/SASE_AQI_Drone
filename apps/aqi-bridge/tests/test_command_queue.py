@@ -15,13 +15,13 @@ import asyncio
 import logging
 import time
 
+import aqi_bridge.api as api
 from aqi_bridge.config import (
     COMMAND_DROP_LOG_INTERVAL_S,
     COMMAND_QUEUE_POLICY,
     COMMAND_QUEUE_SIZE,
 )
 from aqi_bridge.models import ControlCommand
-import aqi_bridge.api as api
 
 logging.basicConfig(level=logging.WARNING)  # suppress DEBUG noise in stress test
 

@@ -168,8 +168,8 @@ async def test_disconnected_returns_false():
 # ---------------------------------------------------------------------------
 async def test_consumer_loop_only_write_path():
     print("\n--- Serial Test 6: command_consumer_loop is The Only Write Path ---")
-    from aqi_bridge.config import COMMAND_QUEUE_SIZE
     from aqi_bridge.api import enqueue_command_drop_oldest
+    from aqi_bridge.config import COMMAND_QUEUE_SIZE
 
     ble = _make_connected_ble()
     queue: asyncio.Queue[ControlCommand] = asyncio.Queue(maxsize=COMMAND_QUEUE_SIZE)
@@ -212,8 +212,8 @@ async def test_consumer_loop_only_write_path():
 # ---------------------------------------------------------------------------
 async def test_flood_writes_in_flight_capped():
     print("\n--- Serial Test 7: Flood Test — writes_in_flight Never > 1 ---")
-    from aqi_bridge.config import COMMAND_QUEUE_SIZE
     from aqi_bridge.api import enqueue_command_drop_oldest
+    from aqi_bridge.config import COMMAND_QUEUE_SIZE
 
     ble = _make_connected_ble()
     queue: asyncio.Queue[ControlCommand] = asyncio.Queue(maxsize=COMMAND_QUEUE_SIZE)
@@ -254,9 +254,8 @@ async def test_flood_writes_in_flight_capped():
 # ---------------------------------------------------------------------------
 async def test_ble_write_failure_policy_handles_exceptions():
     print("\n--- Serial Test 8: BLE Write Failure Policy ---")
-    from bleak.exc import BleakError
-
     from aqi_bridge.app import command_consumer_loop
+    from bleak.exc import BleakError
     
     ble = _make_connected_ble()
     queue: asyncio.Queue[ControlCommand] = asyncio.Queue(maxsize=10)
