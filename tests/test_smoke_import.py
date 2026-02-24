@@ -15,10 +15,16 @@ def test_bridge_import_smoke():
             timeout=1
         )
     except subprocess.TimeoutExpired as e:
-        # A timeout means the server started and blocked successfully.
-        # e.stdout / e.stderr are None when no input was provided, so guard with `or ""`.
-        stdout = e.stdout or ""
-        stderr = e.stderr or ""
+        # A timeout means the server booted successfully and is blocking.
+        # NOTE: even with text=True, TimeoutExpired delivers stdout/stderr as
+        # raw bytes on CPython 3.12+, so we decode defensively.
+        def _decode(data) -> str:
+            if isinstance(data, bytes):
+                return data.decode(errors="replace")
+            return data or ""
+
+        stdout = _decode(e.stdout)
+        stderr = _decode(e.stderr)
         assert "ModuleNotFoundError" not in stdout and "ModuleNotFoundError" not in stderr, \
             "Found ModuleNotFoundError despite timeout"
         return
