@@ -262,6 +262,7 @@ async def test_ble_write_failure_policy_handles_exceptions():
     queue: asyncio.Queue[ControlCommand] = asyncio.Queue(maxsize=10)
     last_cmd_time = [0.0]
     write_metrics = {
+        "success": 0,
         "errors": 0, 
         "dropped": 0, 
         "dropped_stale": 0,

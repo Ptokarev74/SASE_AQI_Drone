@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import logging.handlers
+import queue
 import signal
 import sys
 import time
@@ -49,16 +51,32 @@ from aqi_bridge.config import (
 from aqi_bridge.models import FAILSAFE_COMMAND, ControlCommand
 
 
+# ---------------------------------------------------------------------------
+# Global log queue and listener for non-blocking I/O
+# ---------------------------------------------------------------------------
+_log_queue: queue.Queue = queue.Queue(-1)
+_log_listener: logging.handlers.QueueListener | None = None
+
+
 def setup_logging():
-    """Configure structured logging based on config.LOG_FORMAT."""
+    """
+    Configure structured logging to be non-blocking.
+    
+    TRADEOFF: Real-time responsiveness > Log persistence during crash.
+    Writing to the terminal (especially on Windows) is a synchronous, slow 
+    operation. To prevent log writes from inducing jitter in the command 
+    pipeline, we offload all logging to a background thread using a 
+    QueueHandler/QueueListener pattern.
+    """
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL)
 
     # Clean up existing handlers
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
+    for h in root_logger.handlers[:]:
+        root_logger.removeHandler(h)
 
-    handler = logging.StreamHandler()
+    # The actual output target (Console)
+    console_handler = logging.StreamHandler()
     
     if LOG_FORMAT == "json":
         try:
@@ -74,8 +92,19 @@ def setup_logging():
     else:
         formatter = logging.Formatter("%(asctime)s  %(levelname)-8s  %(name)s  %(message)s")
 
-    handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
+    console_handler.setFormatter(formatter)
+    
+    # Non-blocking setup:
+    # 1. Root logger enqueues messages to _log_queue
+    root_logger.addHandler(logging.handlers.QueueHandler(_log_queue))
+
+    # 2. Start (or restart) background listener to drain _log_queue into console_handler
+    global _log_listener
+    if _log_listener:
+        _log_listener.stop()
+    
+    _log_listener = logging.handlers.QueueListener(_log_queue, console_handler)
+    _log_listener.start()
 
 setup_logging()
 logger = logging.getLogger("aqi_bridge")
@@ -144,6 +173,7 @@ async def command_consumer_loop(
                         continue
 
                     # ONLY write surface for BLE in the entire process.
+                    cmd.ts_write_started = time.monotonic()
                     cmd.ts_dispatched = time.monotonic()
                     ok = await ble._write_command_bytes(cmd)
                     if ok:

@@ -64,9 +64,11 @@ async def test_staleness_drop_enforcement(mock_ble, monkeypatch):
     from aqi_bridge.app import command_consumer_loop
     task = asyncio.create_task(
         command_consumer_loop(mock_ble, queue, [time.monotonic()], {
+            "success": 0,
             "dropped": 0, 
             "dropped_stale": 0,
             "errors": 0,
+            "last_error_timestamp": 0.0,
             "max_command_age_ms": 0.0,
             "sum_command_age_ms": 0.0,
             "total_commands_checked": 0

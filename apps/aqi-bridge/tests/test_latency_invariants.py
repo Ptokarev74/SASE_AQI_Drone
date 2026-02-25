@@ -36,6 +36,7 @@ async def test_latency_timestamps_strictly_ordered():
     queue = asyncio.Queue(maxsize=10)
     last_cmd_time = [0.0]
     write_metrics = {
+        "success": 0,
         "errors": 0, 
         "dropped": 0, 
         "dropped_stale": 0,

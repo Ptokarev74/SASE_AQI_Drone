@@ -103,6 +103,7 @@ class ControlCommand(BaseModel):
     ts_received: float = 0.0
     ts_enqueued: float = 0.0
     ts_dequeued: float = 0.0
+    ts_write_started: float = 0.0
     ts_dispatched: float = 0.0
 
     def pack_binary(self) -> bytes:
