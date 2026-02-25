@@ -60,7 +60,20 @@ CHUNK_ASSEMBLY_TIMEOUT_S: float = 2.0   # discard incomplete sequences older tha
 # ---------------------------------------------------------------------------
 # Max items in the command queue.  When full, the *oldest* command is dropped
 # so the drone always receives the most recent pilot intent.
-COMMAND_QUEUE_SIZE: int = 4
+COMMAND_QUEUE_SIZE: int = 50
+
+# --- Deadman Safety Contract ---
+# Numeric bounds enforcing the provable failsafe behavior (ms resolution).
+# If no command received in DEADMAN_TIMEOUT_MS, a FAILSAFE_COMMAND is emitted within FAILSAFE_EMIT_BUDGET_MS.
+DEADMAN_TIMEOUT_MS: float = 500.0
+FAILSAFE_EMIT_BUDGET_MS: float = 50.0
+
+# Staleness bounds: Rejects any command buffered longer than this duration
+# Ensure the drone always receives the most immediate intent
+MAX_COMMAND_AGE_MS: float = 300.0
+
+# Backward compatibility map
+DEADMAN_TIMEOUT_S: float = DEADMAN_TIMEOUT_MS / 1000.0
 
 # Overflow policy (informational constant — enforced by enqueue_command_drop_oldest).
 # "drop_oldest": discard the front of the queue (oldest) and enqueue the new command.
@@ -98,6 +111,13 @@ MAX_TELEMETRY_BUFFER_SIZE: int = 4096
 # If an Arduino payload (direct or reassembled from chunks) exceeds this,
 # it is explicitly dropped to prevent memory exhaustion / MTU overflow.
 MAX_TELEMETRY_JSON_BYTES: int = 1024
+
+# --- Protocol Hardening ---
+# If True, both incoming and outgoing frames MUST have a trailing CRC32.
+BLE_CRC_REQUIRED: bool = True
+
+# If True, ControlCommands are sent as dense binary packets instead of NDJSON.
+BLE_USE_BINARY_COMMANDS: bool = True
 
 # ---------------------------------------------------------------------------
 # BLE communication settings

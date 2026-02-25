@@ -15,6 +15,7 @@ Validates:
 
 import asyncio
 import logging
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from aqi_bridge.ble import BLEDroneClient
@@ -260,7 +261,15 @@ async def test_ble_write_failure_policy_handles_exceptions():
     ble = _make_connected_ble()
     queue: asyncio.Queue[ControlCommand] = asyncio.Queue(maxsize=10)
     last_cmd_time = [0.0]
-    write_metrics = {"errors": 0, "dropped": 0, "last_error_timestamp": 0.0}
+    write_metrics = {
+        "errors": 0, 
+        "dropped": 0, 
+        "dropped_stale": 0,
+        "last_error_timestamp": 0.0,
+        "max_command_age_ms": 0.0,
+        "sum_command_age_ms": 0.0,
+        "total_commands_checked": 0
+    }
     
     # Mock write_gatt_char to raise a BleakError
     ble._client.write_gatt_char = AsyncMock(side_effect=BleakError("Simulated write exception"))
@@ -270,6 +279,7 @@ async def test_ble_write_failure_policy_handles_exceptions():
     
     # Put a single command in the queue
     cmd = _make_cmd(vx=99.0)
+    cmd.ts_received = time.monotonic() # Ensure it's not dropped for staleness
     queue.put_nowait(cmd)
     
     # Run the consumer loop momentarily. 

@@ -13,6 +13,7 @@ Verifies that:
 """
 
 import logging
+import zlib
 
 from aqi_bridge.ble import BLEDroneClient
 
@@ -20,15 +21,27 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 def make_chunk_frames(json_str: str, chunk_size: int, seq_id: int) -> list[bytes]:
-    """Simulate Arduino chunked framing: split json_str into chunks of chunk_size bytes."""
-    data = json_str.encode("utf-8")
-    chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+    """
+    Simulate Arduino chunked framing.
+    Now signs the json_str with CRC32 before chunking to satisfy protocol hardening.
+    """
+    payload = json_str.encode("utf-8")
+    # Sign the payload
+    crc = zlib.crc32(payload) & 0xFFFFFFFF
+    signed_payload = payload + f"|{crc:08x}".encode("ascii")
+    
+    chunks = [signed_payload[i:i + chunk_size] for i in range(0, len(signed_payload), chunk_size)]
     total = len(chunks)
     frames = []
     for idx, chunk in enumerate(chunks):
         header = f"{seq_id}|{total}|{idx}|".encode("utf-8")
         frames.append(header + chunk + b"\n")
     return frames
+
+def _with_crc(payload: bytes) -> bytes:
+    """Helper for manual frames."""
+    crc = zlib.crc32(payload) & 0xFFFFFFFF
+    return payload + f"|{crc:08x}".encode("ascii")
 
 
 def notify(client: BLEDroneClient, frame: bytes) -> None:
@@ -61,7 +74,8 @@ def test_chunk_single_chunk():
     client.chunking_enabled = True
     client.latest_telemetry = None
 
-    frame = b'0|1|0|{"status":"single"}\n'
+    payload_p2 = _with_crc(b'{"status":"single"}')
+    frame = b'0|1|0|' + payload_p2 + b'\n'
     notify(client, frame)
     assert client.latest_telemetry is not None
     assert client.latest_telemetry.status == "single"
@@ -101,7 +115,8 @@ def test_chunk_incomplete_sequence_expired():
     client._assemblies[7].created_at -= 5.0  # 5 seconds ago
 
     # Next notification triggers GC
-    notify(client, b'99|1|0|{"status":"after_gc"}\n')
+    ok_payload = _with_crc(b'{"status":"after_gc"}')
+    notify(client, b'99|1|0|' + ok_payload + b'\n')
 
     assert 7 not in client._assemblies, "Expired assembly not cleaned up"
     assert client.latest_telemetry.status == "after_gc"
@@ -137,7 +152,8 @@ def test_chunk_corrupt_header_discarded():
     # Wrong number of pipe segments
     notify(client, b'bad|header\n')      # only 2 parts
     notify(client, b'x|y|z|{\n')        # non-integer fields
-    notify(client, b'99|1|0|{"status":"ok_after_corrupt"}\n')
+    ok_p = _with_crc(b'{"status":"ok_after_corrupt"}')
+    notify(client, b'99|1|0|' + ok_p + b'\n')
 
     assert client.latest_telemetry is not None
     assert client.latest_telemetry.status == "ok_after_corrupt"

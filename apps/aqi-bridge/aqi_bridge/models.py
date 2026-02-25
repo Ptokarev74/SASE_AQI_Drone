@@ -14,8 +14,13 @@ existing fields.  See ARCHITECTURE.md "Telemetry Snapshot Safety".
 """
 
 from __future__ import annotations
+import time
 
-from pydantic import BaseModel, Field
+import struct
+import zlib
+from pydantic import BaseModel, ConfigDict, Field
+
+from aqi_bridge.config import CHUNK_MAX_MESSAGE_SIZE
 
 
 # ---------------------------------------------------------------------------
@@ -81,17 +86,53 @@ class TelemetryMessage(BaseModel):
 # ---------------------------------------------------------------------------
 class ControlCommand(BaseModel):
     """
-    Velocity + yaw + arm command sent from the PWA controller.
-
-    All velocity values are in the drone's body frame.
+    Commands sent from the web client, destined for the drone firmware.
+    Contains strict float domains to inherently reject pathological scaling 
+    or NaN/Infinity exploits before hitting the BLE transceiver.
     """
 
-    vx: float = 0.0
-    vy: float = 0.0
-    vz: float = 0.0
-    yaw: float = 0.0
+    model_config = ConfigDict(extra="ignore")
+
+    vx: float = Field(default=0.0, ge=-10000.0, le=10000.0, allow_inf_nan=False)
+    vy: float = Field(default=0.0, ge=-10000.0, le=10000.0, allow_inf_nan=False)
+    vz: float = Field(default=0.0, ge=-10000.0, le=10000.0, allow_inf_nan=False)
+    yaw: float = Field(default=0.0, ge=-10000.0, le=10000.0, allow_inf_nan=False)
     arm: bool = False
 
+    # Performance instrumentation (monotonic timestamps)
+    ts_received: float = 0.0
+    ts_enqueued: float = 0.0
+    ts_dequeued: float = 0.0
+    ts_dispatched: float = 0.0
 
-# Pre-built constant: the command that stops all motion / disarms.
-ZERO_COMMAND = ControlCommand(vx=0.0, vy=0.0, vz=0.0, yaw=0.0, arm=False)
+    def pack_binary(self) -> bytes:
+        """
+        Pack the command into a 21-byte binary packet:
+        [vx: f32][vy: f32][vz: f32][yaw: f32][arm: u8][crc32: u32]
+        Use little-endian ('<') for deterministic Arduino compatibility.
+        """
+        # 1. Pack the core fields (17 bytes: 4x floats + 1x bool/u8)
+        packed_data = struct.pack(
+            "<ffffB",
+            self.vx,
+            self.vy,
+            self.vz,
+            self.yaw,
+            1 if self.arm else 0
+        )
+        
+        # 2. Calculate CRC32 over the 17 bytes
+        crc = zlib.crc32(packed_data) & 0xFFFFFFFF
+        
+        # 3. Append the CRC32 (4 bytes)
+        return packed_data + struct.pack("<I", crc)
+
+    # Safety instrumentation: marks autonomous bridge-injected overrides
+    is_failsafe: bool = False
+
+
+# Pre-built constant: The explicitly defined safety override command.
+# Bounding invariants dictate this MUST arm=False and zeroes all velocity.
+FAILSAFE_COMMAND = ControlCommand(
+    vx=0.0, vy=0.0, vz=0.0, yaw=0.0, arm=False, is_failsafe=True
+)

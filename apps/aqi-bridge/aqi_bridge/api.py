@@ -222,6 +222,7 @@ def enqueue_command_drop_oldest(
             _metrics._last_drop_log_at = now
 
     try:
+        cmd.ts_enqueued = time.monotonic()
         queue.put_nowait(cmd)
         _metrics.commands_enqueued += 1
     except asyncio.QueueFull:
@@ -449,7 +450,11 @@ def create_app(
                     )
                     continue
 
-                _handle_control_message(raw, command_queue)
+                _handle_control_message(
+                    raw, 
+                    command_queue, 
+                    app.state.control_inhibited  # type: ignore[attr-defined]
+                )
 
         except WebSocketDisconnect:
             pass
@@ -481,14 +486,27 @@ def create_app(
 def _handle_control_message(
     raw: str,
     queue: asyncio.Queue[ControlCommand],
+    control_inhibited: list[bool] | None = None,
 ) -> None:
     """Validate incoming JSON and route to ``enqueue_command_drop_oldest``."""
+    recv_time = time.monotonic()
     try:
         data = json.loads(raw)
         cmd = ControlCommand.model_validate(data)
+        cmd.ts_received = recv_time
     except Exception as exc:
         logger.debug("Bad control message: %s — %s", exc, raw[:200])
         return
+
+    # --- Deadman Safety Contract: Control Inhibition ---
+    if control_inhibited and control_inhibited[0]:
+        if getattr(cmd, "arm", False):
+            # Explicit re-arm command resets the lockout
+            logger.warning("Explicit RE-ARM received. Lifting control inhibition.")
+            control_inhibited[0] = False
+        else:
+            # Drop all other inputs (like pegging the joystick forward)
+            return
 
     # Single enqueue path — enforces drop-oldest policy.
     enqueue_command_drop_oldest(queue, cmd)

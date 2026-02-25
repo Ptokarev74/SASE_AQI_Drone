@@ -19,6 +19,7 @@ ENV/
 
 # Testing
 .pytest_cache/
+.hypothesis/
 .coverage
 htmlcov/
 coverage.xml
@@ -50,4 +51,6 @@ out.txt
 # OS
 Thumbs.db
 
-INTERVIEW_PREP.md
+# Docs
+docs/PROJECT_MANAGER_UPDATE.md
+interview_prep.md

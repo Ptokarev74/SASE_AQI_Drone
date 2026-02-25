@@ -38,6 +38,7 @@ from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.config import (
     COMMAND_QUEUE_SIZE,
     DEADMAN_TIMEOUT_S,
+    MAX_COMMAND_AGE_MS,
     LOG_FORMAT,
     LOG_LEVEL,
     LOG_RATE_LIMIT_S,
@@ -45,7 +46,7 @@ from aqi_bridge.config import (
     WS_HOST,
     WS_PORT,
 )
-from aqi_bridge.models import ZERO_COMMAND, ControlCommand
+from aqi_bridge.models import FAILSAFE_COMMAND, ControlCommand
 
 
 def setup_logging():
@@ -110,31 +111,55 @@ async def command_consumer_loop(
     while True:
         try:
             cmd = await queue.get()
+            cmd.ts_dequeued = time.monotonic()
 
-            #ONLY try writing if already connected to prevent spam
-            if not ble.connected.is_set():
-                 write_metrics["dropped"] += 1
-                 logger.debug("BLE write skipped (disconnected) — command dropped: %s", cmd)
-                 continue
+            # Only write when BLE is connected
+            if ble.connected.is_set():
+                # Layer 1: Failure Mode Enforcement - Command Staleness (Dequeue)
+                age_ms = (time.monotonic() - cmd.ts_received) * 1000.0
+                
+                write_metrics["total_commands_checked"] += 1
+                write_metrics["sum_command_age_ms"] += age_ms
+                if age_ms > write_metrics["max_command_age_ms"]:
+                    write_metrics["max_command_age_ms"] = age_ms
 
-            try:
-                # ONLY write surface for BLE in the entire process.
-                ok = await ble._write_command_bytes(cmd)
-                if ok:
-                    last_cmd_time[0] = time.monotonic()
-                    logger.debug("BLE write OK: %s", cmd)
-                else:
-                    write_metrics["dropped"] += 1
-                    logger.debug(
-                        "BLE write skipped (explicitly disconnected) — command dropped: %s", cmd
+                if age_ms > MAX_COMMAND_AGE_MS and not getattr(cmd, "is_failsafe", False):
+                    logger.warning(
+                        "Command rejected at dequeue for staleness: age=%.1fms > max=%.1fms. Dropping.",
+                        age_ms, MAX_COMMAND_AGE_MS
                     )
-            except Exception as exc:
-                write_metrics["errors"] += 1
-                write_metrics["dropped"] += 1
-                write_metrics["last_error_timestamp"] = time.monotonic()
-                logger.error("BLE write failed deterministically: %s", exc)
-                # Fail-fast: tear down the link to force a clean restart cycle
-                await ble._safe_disconnect()
+                    write_metrics["dropped_stale"] += 1
+                    continue
+
+                try:
+                    # Layer 2: Pre-BLE-Write Verification
+                    # Prevent a stall *between* dequeue and write from executing a dangerously stale intent.
+                    pre_write_age_ms = (time.monotonic() - cmd.ts_received) * 1000.0
+                    if pre_write_age_ms > MAX_COMMAND_AGE_MS and not getattr(cmd, "is_failsafe", False):
+                        logger.warning(
+                            "Command rejected PRE-WRITE for staleness: age=%.1fms > max=%.1fms. Dropping.",
+                            pre_write_age_ms, MAX_COMMAND_AGE_MS
+                        )
+                        write_metrics["dropped_stale"] += 1
+                        continue
+
+                    # ONLY write surface for BLE in the entire process.
+                    cmd.ts_dispatched = time.monotonic()
+                    ok = await ble._write_command_bytes(cmd)
+                    if ok:
+                        write_metrics["success"] += 1
+                        last_cmd_time[0] = time.monotonic()
+                        logger.debug("BLE write OK: %s (age: %.1fms)", cmd, pre_write_age_ms)
+                    else:
+                        write_metrics["dropped"] += 1
+                        logger.debug("BLE write skipped (disconnected) — command dropped: %s", cmd)
+                except Exception as exc:
+                    write_metrics["errors"] += 1
+                    write_metrics["dropped"] += 1
+                    write_metrics["last_error_timestamp"] = time.monotonic()
+                    logger.error("BLE write failed deterministically: %s", exc)
+                    # Fail-fast: tear down the link to force a clean restart cycle
+                    await ble._safe_disconnect()
 
         except asyncio.CancelledError:
             logger.info("command_consumer_loop cancelled")
@@ -144,12 +169,13 @@ async def command_consumer_loop(
 
 
 # ---------------------------------------------------------------------------
-# Deadman safety — enqueues ZERO_COMMAND, does NOT write BLE directly
+# Deadman safety — enqueues FAILSAFE_COMMAND, does NOT write BLE directly
 # ---------------------------------------------------------------------------
 async def deadman_timer(
     ble: BLEDroneClient,
     queue: asyncio.Queue[ControlCommand],
     last_cmd_time: list[float],
+    control_inhibited: list[bool],
 ) -> None:
     """
     If no control command has been received for ``DEADMAN_TIMEOUT_S`` seconds,
@@ -166,7 +192,7 @@ async def deadman_timer(
 
     while True:
         try:
-            await asyncio.sleep(0.1)  # check at 10 Hz
+            await asyncio.sleep(0.01)  # check at 100 Hz for tighter failsafe budgets
 
             # Only enforce deadman when BLE is connected and we've received
             # at least one command (last_cmd_time != 0).
@@ -179,11 +205,13 @@ async def deadman_timer(
             if elapsed > DEADMAN_TIMEOUT_S:
                 if not fired:
                     logger.warning(
-                        "DEADMAN: no command for %.2fs — enqueuing ZERO_COMMAND",
+                        "DEADMAN FAILSAFE: no command for %.2fs — enqueuing FAILSAFE_COMMAND and locking out inputs",
                         elapsed,
                     )
                     # Enqueue via the same drop-oldest path — preserves single-writer rule.
-                    enqueue_command_drop_oldest(queue, ZERO_COMMAND)
+                    # Lock out user inputs until they explicitly re-arm
+                    control_inhibited[0] = True 
+                    enqueue_command_drop_oldest(queue, FAILSAFE_COMMAND)
                     fired = True
             else:
                 fired = False
@@ -265,12 +293,22 @@ async def _run() -> None:
     
     # BLE Write Failure metrics
     write_metrics = {
+        "success": 0,
+        "dropped": 0,    # General buffer drops
+        "dropped_stale": 0, # Explicit staleness drops
         "errors": 0,
-        "dropped": 0,
         "last_error_timestamp": 0.0,
+        "max_command_age_ms": 0.0,
+        "sum_command_age_ms": 0.0,
+        "total_commands_checked": 0,
     }
 
     app = create_app(ble, command_queue, loop_lag, starvation_count, write_metrics)
+
+    # State flag to enforce explicit pilot re-arming after failsafe triggers
+    control_inhibited: list[bool] = [False]
+    # Pass this into the app state so the REST api.py can read/write the control lock
+    app.state.control_inhibited = control_inhibited
 
     # --- spawn concurrent tasks -----------------------------------------
     tasks = [
@@ -285,7 +323,7 @@ async def _run() -> None:
             name="telem_broadcast",
         ),
         asyncio.create_task(
-            deadman_timer(ble, command_queue, last_cmd_time),
+            deadman_timer(ble, command_queue, last_cmd_time, control_inhibited),
             name="deadman",
         ),
         asyncio.create_task(
@@ -333,14 +371,27 @@ async def _run() -> None:
 
 
 def main() -> None:
-    try:
-        asyncio.run(_run())
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except Exception:
-        # Task crash triggered an unhandled exception
-        logger.critical("Bridge process exiting due to fatal error")
-        sys.exit(1)
+    """Entry point with bounded exponential backoff supervisor loop."""
+    backoff_s = 1.0
+    max_backoff_s = 60.0
+
+    while True:
+        try:
+            asyncio.run(_run())
+            # If _run() exits cleanly (e.g. graceful shutdown), we can break
+            break
+        except KeyboardInterrupt:
+            logger.info("Supervisor caught KeyboardInterrupt, exiting.")
+            sys.exit(0)
+        except Exception as exc:
+            logger.critical("Bridge process crashed: %s", exc)
+            logger.info("Restarting in %.1f seconds... (Backoff)", backoff_s)
+            
+            # Synchronous sleep since we are outside the asyncio loop
+            time.sleep(backoff_s)
+            
+            # Exponential backoff capped at max_backoff_s
+            backoff_s = min(backoff_s * 2.0, max_backoff_s)
 
 
 if __name__ == "__main__":

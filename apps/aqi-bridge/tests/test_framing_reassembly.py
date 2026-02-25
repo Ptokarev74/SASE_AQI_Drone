@@ -6,18 +6,24 @@ the reassembly buffer in BLEDroneClient is robust.
 """
 
 import logging
+import zlib
 
 from aqi_bridge.ble import BLEDroneClient
 
 # Setup minimal logging to see frame extractions
 logging.basicConfig(level=logging.DEBUG)
 
+def _with_crc(payload: bytes) -> bytes:
+    """Helper to append CRC32 to a payload."""
+    crc = zlib.crc32(payload) & 0xFFFFFFFF
+    return payload + f"|{crc:08x}\n".encode("ascii")
+
 def test_reassembly():
     client = BLEDroneClient()
     
     # 1. Test case: Full message in one go
     print("\n--- Test 1: Full Message ---")
-    msg1 = b'{"status": "ok", "aqi": 10}\n'
+    msg1 = _with_crc(b'{"status": "ok", "aqi": 10}')
     client._on_telemetry_notification(0, bytearray(msg1))
     assert client.latest_telemetry is not None
     assert client.latest_telemetry.status == "ok"
@@ -27,8 +33,9 @@ def test_reassembly():
     # 2. Test case: Fragmented message (2 parts)
     print("\n--- Test 2: Fragmented Message ---")
     client.latest_telemetry = None
-    part1 = b'{"status": "fragmented", '
-    part2 = b'"aqi": 20}\n'
+    full_msg = _with_crc(b'{"status": "fragmented", "aqi": 20}')
+    part1 = full_msg[:15]
+    part2 = full_msg[15:]
     client._on_telemetry_notification(0, bytearray(part1))
     assert client.latest_telemetry is None  # Should still be waiting
     client._on_telemetry_notification(0, bytearray(part2))
@@ -38,15 +45,19 @@ def test_reassembly():
 
     # 3. Test case: Bunched messages (2 in 1 notification)
     print("\n--- Test 3: Bunched Messages ---")
-    bunched = b'{"status": "first"}\n{"status": "second"}\n'
+    bunched = _with_crc(b'{"status": "first"}') + _with_crc(b'{"status": "second"}')
     client._on_telemetry_notification(0, bytearray(bunched))
     assert client.latest_telemetry.status == "second"
     print("SUCCESS")
 
     # 4. Test case: Malformed followed by valid
     print("\n--- Test 4: Malformed + Valid ---")
-    malformed = b'{"status": "bad" broken}\n{"status": "fixed"}\n'
+    # A frame with missing separator should be dropped by CRC check
+    f1 = b'{"status": "bad" broken}\n'
+    f2 = _with_crc(b'{"status": "fixed"}')
+    malformed = f1 + f2
     client._on_telemetry_notification(0, bytearray(malformed))
+    assert client.latest_telemetry is not None
     assert client.latest_telemetry.status == "fixed"
     print("SUCCESS")
 
@@ -62,8 +73,9 @@ def test_reassembly():
     # 6. Test case: UTF-8 partial (fragmenting a multibyte character)
     # The degree symbol ° is C2 B0 in UTF-8
     print("\n--- Test 6: Partial UTF-8 Character ---")
-    part_a = b'{"status": "' + b'\xc2'
-    part_b = b'\xb0"}\n'
+    msg_utf8 = _with_crc(b'{"status": "\xc2\xb0"}')
+    part_a = msg_utf8[:15]
+    part_b = msg_utf8[15:]
     client._on_telemetry_notification(0, bytearray(part_a))
     client._on_telemetry_notification(0, bytearray(part_b))
     assert client.latest_telemetry.status == "°"

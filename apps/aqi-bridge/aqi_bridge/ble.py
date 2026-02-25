@@ -49,6 +49,7 @@ import asyncio
 import json
 import logging
 import time
+import zlib
 from typing import Optional
 
 from bleak import BleakClient, BleakScanner
@@ -61,6 +62,8 @@ from aqi_bridge.config import (
     BLE_OVERHEAD_BYTES,
     BLE_RECONNECT_DELAY_S,
     BLE_TARGET_MTU_BYTES,
+    BLE_CRC_REQUIRED,
+    BLE_USE_BINARY_COMMANDS,
     CHUNK_ASSEMBLY_TIMEOUT_S,
     CHUNK_MAX_MESSAGE_SIZE,
     COMMAND_CHAR_UUID,
@@ -240,7 +243,9 @@ class BLEDroneClient:
                 continue
 
             # --- Layer 2: route to chunk assembler or direct parse ----------
-            if self.chunking_enabled and b"|" in raw_frame[:20]:
+            # A chunk frame starts with an integer seq_id (digit), 
+            # while a JSON frame starts with '{'.
+            if self.chunking_enabled and raw_frame and chr(raw_frame[0]).isdigit():
                 self._handle_chunk(raw_frame)
             else:
                 self._process_frame(raw_frame)
@@ -327,19 +332,56 @@ class BLEDroneClient:
     # Frame processing
     # ------------------------------------------------------------------
     def _process_frame(self, frame: bytes) -> None:
-        """Parse a complete JSON frame and update the atomic snapshot."""
+        """
+        Parse a complete frame and update the atomic snapshot.
+        If BLE_CRC_REQUIRED is set, verifies trailing CRC32 before parsing.
+        """
+        # --- CRC32 Hardening ---
+        if BLE_CRC_REQUIRED:
+            if b"|" not in frame:
+                logger.debug("Hardening Error: Incoming frame lacks mandatory CRC separator '|'")
+                return
+            
+            # Split into payload and checksum (e.g. b'{"aqi":10}|1a2b3c4d')
+            parts = frame.rsplit(b"|", 1)
+            if len(parts) != 2:
+                return
+            
+            payload_bytes, crc_hex = parts
+            try:
+                # Calculate CRC32 of raw payload
+                expected_crc = zlib.crc32(payload_bytes) & 0xFFFFFFFF
+                # Checksum transmitted as hex string
+                actual_crc = int(crc_hex, 16)
+                if expected_crc != actual_crc:
+                    logger.warning(
+                        "Hardening Violation: CRC32 mismatch! Discarding malformed "
+                        "frame before parsing. (exp=%08x, act=%08x)",
+                        expected_crc, actual_crc
+                    )
+                    return
+            except ValueError:
+                logger.debug("Hardening Error: Invalid CRC hex format: %s", crc_hex)
+                return
+            
+            # If valid, we parse the payload_bytes
+            data_to_decode = payload_bytes
+        else:
+            # Legacy mode
+            data_to_decode = frame
+
         # --- MTU / Memory Enforcement ---
-        if len(frame) > MAX_TELEMETRY_JSON_BYTES:
+        if len(data_to_decode) > MAX_TELEMETRY_JSON_BYTES:
             logger.warning(
                 "Telemetry JSON rejected: exceeds MAX_TELEMETRY_JSON_BYTES "
                 "(%d > %d). Length violation.",
-                len(frame), MAX_TELEMETRY_JSON_BYTES
+                len(data_to_decode), MAX_TELEMETRY_JSON_BYTES
             )
             return
 
         # Decode UTF-8 safely
         try:
-            raw_str = frame.decode("utf-8")
+            raw_str = data_to_decode.decode("utf-8")
         except UnicodeDecodeError as exc:
             logger.error("UTF-8 decode failure on telemetry frame: %s", exc)
             return
@@ -400,11 +442,18 @@ class BLEDroneClient:
                 "BLE WRITE CONCURRENCY BUG DETECTED: writes_in_flight=%d. "
                 "This means _write_command_bytes was called from more than one "
                 "coroutine simultaneously, violating the single-writer rule. "
-                "Investigate immediately.",
+                 "Investigate immediately.",
                 self.writes_in_flight,
             )
 
-        payload = cmd.model_dump_json().encode("utf-8")
+        if BLE_USE_BINARY_COMMANDS:
+            payload = cmd.pack_binary()
+        else:
+            payload = cmd.model_dump_json().encode("utf-8")
+            if BLE_CRC_REQUIRED:
+                crc = zlib.crc32(payload) & 0xFFFFFFFF
+                payload += f"|{crc:08x}".encode("ascii")
+
         try:
             # Defense-in-depth lock: serializes any accidental concurrent caller.
             # Should never contend in correct operation.
