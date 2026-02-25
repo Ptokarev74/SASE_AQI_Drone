@@ -8,15 +8,16 @@ Validates:
   4. Garbage injection into the framing layer does not cause CPU/parse churn.
 """
 
-import zlib
-import struct
 import asyncio
-import pytest
+import struct
+import zlib
 from unittest.mock import MagicMock
 
+import pytest
 from aqi_bridge.ble import BLEDroneClient
+from aqi_bridge.config import BLE_USE_BINARY_COMMANDS
 from aqi_bridge.models import ControlCommand
-from aqi_bridge.config import BLE_CRC_REQUIRED, BLE_USE_BINARY_COMMANDS
+
 
 @pytest.fixture
 def ble_client():
@@ -28,14 +29,11 @@ def test_telemetry_crc_passing(ble_client):
     crc = zlib.crc32(payload) & 0xFFFFFFFF
     frame = payload + f"|{crc:08x}".encode("ascii")
     
-    # Mock _process_frame to track if it reached Pydantic validation
-    with MagicMock() as mock_validate:
-        from aqi_bridge.models import TelemetryMessage
-        # We can't easily mock model_validate inside _process_frame without more patching,
-        # so we'll just check if self.latest_telemetry changes.
-        ble_client._process_frame(frame)
-        assert ble_client.latest_telemetry is not None
-        assert ble_client.latest_telemetry.status == "ok"
+    # We can't easily mock model_validate inside _process_frame without more patching,
+    # so we'll just check if self.latest_telemetry changes.
+    ble_client._process_frame(frame)
+    assert ble_client.latest_telemetry is not None
+    assert ble_client.latest_telemetry.status == "ok"
 
 def test_telemetry_crc_mismatch_rejected(ble_client):
     """Verify that a frame with an incorrect CRC32 is rejected before parsing."""

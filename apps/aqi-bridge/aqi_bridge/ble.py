@@ -56,13 +56,13 @@ from bleak import BleakClient, BleakScanner
 from bleak.exc import BleakError
 
 from aqi_bridge.config import (
+    BLE_CRC_REQUIRED,
     BLE_DEFAULT_PAYLOAD_BYTES,
     BLE_DEVICE_NAME,
     BLE_MIN_DIRECT_PAYLOAD_BYTES,
     BLE_OVERHEAD_BYTES,
     BLE_RECONNECT_DELAY_S,
     BLE_TARGET_MTU_BYTES,
-    BLE_CRC_REQUIRED,
     BLE_USE_BINARY_COMMANDS,
     CHUNK_ASSEMBLY_TIMEOUT_S,
     CHUNK_MAX_MESSAGE_SIZE,

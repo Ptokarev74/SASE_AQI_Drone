@@ -36,7 +36,6 @@ import asyncio
 import gc
 import statistics
 import sys
-import time
 from unittest.mock import AsyncMock
 
 from aqi_bridge.api import _handle_control_message, _metrics
@@ -196,13 +195,13 @@ async def run_qualification():
     print("\n--- Workload Accounting (Unit: Commands) ---")
     print(f"Commands Requested: {TOTAL_COMMAND_WORKLOAD}")
     print(f"Commands Generated: {generated}")
-    print(f"---------------------------")
+    print("---------------------------")
     print(f"  + Written to BLE: {written}")
     print(f"  + Left in Queue:  {remaining_in_queue}")
     print(f"  + Stale Dropped:  {stale_drops}")
     print(f"  + Queue Evicted:  {evicted_queue}")
     print(f"  + Write Errors:   {errors}")
-    print(f"---------------------------")
+    print("---------------------------")
     print(f"Total Accounted:    {total_accounted}")
     print(f"Delta (Unaccounted): {TOTAL_COMMAND_WORKLOAD - total_accounted}")
     print(f"GC Pauses (gen 0/1/2): {gc_delta[0]}/{gc_delta[1]}/{gc_delta[2]}")

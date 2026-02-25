@@ -12,8 +12,10 @@ Invariants Asserted:
 """
 
 import zlib
-from hypothesis import given, settings, strategies as st
-from aqi_bridge.ble import BLEDroneClient, CHUNK_MAX_MESSAGE_SIZE, MAX_TELEMETRY_BUFFER_SIZE
+
+from aqi_bridge.ble import MAX_TELEMETRY_BUFFER_SIZE, BLEDroneClient
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # Deterministic limits for CI execution
 settings.register_profile("ci", max_examples=500, deadline=None)

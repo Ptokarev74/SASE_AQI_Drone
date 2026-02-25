@@ -12,24 +12,22 @@ do not exceed the mandated strict performance budget.
 
 import argparse
 import asyncio
-import json
 import logging
-import time
 import sys
+import time
 from typing import Optional
 
 # Requires `pyserial` for side-channel hardware verification
 import serial
-from bleak import BleakClient, BleakScanner
-
 from aqi_bridge.config import (
     BLE_DEVICE_NAME,
     COMMAND_CHAR_UUID,
     DEADMAN_TIMEOUT_MS,
     FAILSAFE_EMIT_BUDGET_MS,
-    USE_WRITE_WITH_RESPONSE
+    USE_WRITE_WITH_RESPONSE,
 )
 from aqi_bridge.models import ControlCommand
+from bleak import BleakClient, BleakScanner
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("hil_qualify")

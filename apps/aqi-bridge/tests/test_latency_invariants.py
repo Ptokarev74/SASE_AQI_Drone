@@ -16,9 +16,8 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
-
-from aqi_bridge.app import command_consumer_loop
 from aqi_bridge.api import _handle_control_message
+from aqi_bridge.app import command_consumer_loop
 from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.models import ControlCommand
 

@@ -9,14 +9,14 @@ and explicit timing constraints categorically reject stale payload intents both:
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
 from aqi_bridge.app import command_consumer_loop
 from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.config import MAX_COMMAND_AGE_MS
 from aqi_bridge.models import ControlCommand
+
 
 @pytest.fixture
 def mock_ble():

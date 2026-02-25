@@ -9,13 +9,14 @@ Asserts:
 
 import asyncio
 import time
-import pytest
 
+import pytest
 from aqi_bridge.api import _handle_control_message
 from aqi_bridge.app import deadman_timer
 from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.config import DEADMAN_TIMEOUT_S, FAILSAFE_EMIT_BUDGET_MS
-from aqi_bridge.models import ControlCommand, FAILSAFE_COMMAND
+from aqi_bridge.models import ControlCommand
+
 
 @pytest.fixture
 def mock_ble():
@@ -71,7 +72,6 @@ async def test_control_inhibition_and_rearm():
     control_inhibited = [True]  # Simulate post-failsafe state
     
     # Incoming thrust command from a 'pegged' joystick
-    thrust_payload = '{"vx": 10.0, "vy": 0.0, "vz": 0.0, "yaw": 0.0, "arm": true}'
     
     # Send normal (un-armed) thrust command
     _handle_control_message(

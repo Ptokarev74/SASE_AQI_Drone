@@ -7,16 +7,15 @@ mitigation logic.
 """
 
 import asyncio
-import sys
 import time
 from unittest.mock import Mock, patch
 
 import pytest
-from pydantic import ValidationError
-
 from aqi_bridge.app import MAX_COMMAND_AGE_MS, main
 from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.models import ControlCommand
+from pydantic import ValidationError
+
 
 @pytest.fixture
 def mock_ble():

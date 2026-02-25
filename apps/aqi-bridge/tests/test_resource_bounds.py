@@ -7,14 +7,12 @@ prove that the system does not leak memory or exhaust CPU (starvation loops)
 when handling dense garbage data.
 """
 
-import asyncio
 import os
 import random
 import time
-import psutil
 import zlib
-from hypothesis import given, settings, strategies as st
 
+import psutil
 from aqi_bridge.ble import BLEDroneClient
 
 # Exact constraints mandated by docs/PROJECT_MANAGER_UPDATE.md
@@ -89,7 +87,7 @@ def test_sustained_fuzzed_load_resource_bounds():
     max_mem_observed = max(max_mem_observed, final_mem)
     max_cpu_observed = max(max_cpu_observed, final_cpu)
 
-    print(f"\n--- Resource Bounds Qualification ---")
+    print("\n--- Resource Bounds Qualification ---")
     print(f"Iterations (Frames Processed): {iterations}")
     print(f"Peak Memory: {max_mem_observed:.2f} MB (Limit: {MAX_MEMORY_MB} MB)")
     print(f"Peak CPU:    {max_cpu_observed:.2f} %  (Limit: {MAX_CPU_PERCENT} %)")

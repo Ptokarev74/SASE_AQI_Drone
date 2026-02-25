@@ -40,16 +40,15 @@ from aqi_bridge.ble import BLEDroneClient
 from aqi_bridge.config import (
     COMMAND_QUEUE_SIZE,
     DEADMAN_TIMEOUT_S,
-    MAX_COMMAND_AGE_MS,
     LOG_FORMAT,
     LOG_LEVEL,
     LOG_RATE_LIMIT_S,
     LOOP_STARVATION_THRESHOLD_S,
+    MAX_COMMAND_AGE_MS,
     WS_HOST,
     WS_PORT,
 )
 from aqi_bridge.models import FAILSAFE_COMMAND, ControlCommand
-
 
 # ---------------------------------------------------------------------------
 # Global log queue and listener for non-blocking I/O

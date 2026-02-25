@@ -14,13 +14,11 @@ existing fields.  See ARCHITECTURE.md "Telemetry Snapshot Safety".
 """
 
 from __future__ import annotations
-import time
 
 import struct
 import zlib
-from pydantic import BaseModel, ConfigDict, Field
 
-from aqi_bridge.config import CHUNK_MAX_MESSAGE_SIZE
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------------
