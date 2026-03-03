@@ -48,9 +48,9 @@ When the connection MTU is insufficient (e.g., the default 23-byte MTU allowing 
 - The resulting string must be valid JSON and falls under the `MAX_TELEMETRY_JSON_BYTES` enforcement limit.
 - If chunks for a given `seq_id` take longer than `CHUNK_ASSEMBLY_TIMEOUT_S` (2.0s) to arrive, the incomplete assembly is discarded.
 
-## 2. WebSocket Control Protocol (Bridge → Drone)
+## 2. WebSocket Control Protocol (PWA → Bridge)
 
-The PWA (Progressive Web App) sends flight commands to the Python bridge over WebSocket. The bridge parses the JSON, validates it against the `ControlCommand` schema, and serializes it over a BLE Write characteristic to the Arduino.
+The PWA sends flight commands to the Python bridge over WebSocket. The bridge parses the JSON, validates it against the `ControlCommand` Pydantic model (`aqi_bridge/models.py`), and serializes it into a binary packet sent over BLE to the Arduino.
 
 **Format:**
 ```json
