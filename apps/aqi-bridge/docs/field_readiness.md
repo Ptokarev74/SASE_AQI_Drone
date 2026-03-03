@@ -7,7 +7,7 @@ This guide outlines how to verify that the SASE AQI Drone bridge is ready for fi
 Before going to the field, ensure the software stack is internally consistent.
 
 ### Pytest Suite
-Run the full suite of 57 tests. These cover WebSocket authentication, BLE reassembly, command queue policies (drop-oldest), and broad system limits.
+Run the full suite of 75 tests. These cover WebSocket authentication, BLE reassembly, command queue policies (drop-oldest), and broad system limits.
 
 ```powershell
 # From the project root
