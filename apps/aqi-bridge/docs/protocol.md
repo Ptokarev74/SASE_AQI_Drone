@@ -59,26 +59,30 @@ The PWA sends flight commands to the Python bridge over WebSocket. The bridge pa
   "vy": 0.0,
   "vz": 0.0,
   "yaw": 0.0,
-  "arm": false
+  "arm": true
 }
 ```
 
-**Fields:**
-| Field | Type    | Range               | Description                                             |
-|-------|---------|---------------------|---------------------------------------------------------|
-| `vx`  | float   | `-10000.0..10000.0` | Forward/backward velocity. Positive = forward.          |
-| `vy`  | float   | `-10000.0..10000.0` | Left/right strafe. Positive = right.                    |
-| `vz`  | float   | `-10000.0..10000.0` | Vertical velocity. Positive = up.                       |
-| `yaw` | float   | `-10000.0..10000.0` | Yaw rate. Positive = clockwise (viewed from above).     |
-| `arm` | boolean | `true / false`      | Motor arm state. Must be `true` for the drone to move.  |
+**Rules & Constraints:**
+- **Types**: `float` for `vx`, `vy`, `vz`, `yaw`; `boolean` for `arm`.
+- **Ranges**: All floats are strictly clamped to `[-1.0, +1.0]`.
+- **Frame**: Body frame.
+- **Yaw**: Represents a yaw *rate*. Sign convention: `+1.0` = Clockwise (CW).
+- **Frequency**: The PWA **MUST** transmit the full command state at exactly **30Hz** while armed.
+- **Completeness**: All fields (`vx`, `vy`, `vz`, `yaw`, `arm`) must be present in every tick. Partial updates are rejected to prevent state desynchronization.
 
-**Wire Format (BLE):**
-The bridge serializes validated commands into a 21-byte binary packet before writing to `COMMAND_CHAR_UUID`:
-```
-[vx: f32][vy: f32][vz: f32][yaw: f32][arm: u8][crc32: u32]  (little-endian)
-```
+### Joystick Mapping (Mode 2)
+The PWA enforces a standard Mode 2 remote control layout:
+- **Right Stick Y (Up)** → `vx = +1.0` (Forward Pitch)
+- **Right Stick X (Right)** → `vy = +1.0` (Right Roll/Strafe)
+- **Left Stick Y (Up)** → `vz = +1.0` (Ascend/Throttle) - *Note: Self-centering in PWA*
+- **Left Stick X (Right)** → `yaw = +1.0` (Clockwise Yaw)
 
-**Safety Rules:**
-- Commands are subject to a **Drop-Oldest Queue Policy**: if the queue is full, the oldest command is evicted to preserve freshness.
-- A **Deadman Timer** fires if no command is received within 0.5 s — the bridge auto-enqueues a zero/disarm failsafe and locks out further input until an explicit `arm: true` re-arm is sent.
-- Commands older than `MAX_COMMAND_AGE_MS` (300 ms) are silently dropped at dequeue time.
+### Disarm Semantics (Safety Critical)
+- `arm = false` explicitly means the motors must immediately spin down to OFF.
+- When the pilot triggers a disarm (via button toggle or emergency stop):
+  1. The UI joystick state is instantly zeroed.
+  2. The PWA immediately transmits `{vx:0, vy:0, vz:0, yaw:0, arm:false}`.
+  3. The PWA transmits this final disarm packet **once**.
+  4. The 30Hz loop is fully stopped.
+- The PWA **MUST NOT** rely on the bridge's deadman switch (0.5s timeout) for normal stopping behavior. The bridge deadman is a secondary fail-safe for connection loss only.

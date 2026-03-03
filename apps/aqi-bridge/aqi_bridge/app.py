@@ -177,7 +177,10 @@ async def command_consumer_loop(
                     ok = await ble._write_command_bytes(cmd)
                     if ok:
                         write_metrics["success"] += 1
-                        last_cmd_time[0] = time.monotonic()
+                        # Only update last_cmd_time if this was a REAL pilot command.
+                        # Do not let bridge-injected failsafe commands reset the deadman timer!
+                        if not getattr(cmd, "is_failsafe", False):
+                            last_cmd_time[0] = time.monotonic()
                         logger.debug("BLE write OK: %s (age: %.1fms)", cmd, pre_write_age_ms)
                     else:
                         write_metrics["dropped"] += 1

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Telemetry Test Client</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #a5b4fc;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2563eb;
+        }
+
+        button:active {
+            background: #1d4ed8;
+        }
+
+        #status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .disconnected {
+            background: #fef2f2;
+            color: #ef4444;
+            border: 1px solid #fca5a5;
+        }
+
+        .connected {
+            background: #f0fdf4;
+            color: #22c55e;
+            border: 1px solid #86efac;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Drone Telemetry Test</h1>
+    <div id="status" class="disconnected">Disconnected</div>
+
+    <div>
+        <button onclick="sendArmCommand()">Send Arm Command</button>
+        <button onclick="sendDisarmCommand()" style="background: #ef4444;">Send Disarm Command</button>
+    </div>
+
+    <h2>Latest Telemetry</h2>
+    <pre id="telemetry">Waiting for data...</pre>
+
+    <script>
+        // 1. Initialize Connection
+        const token = "your_token_here"; // Matches WS_AUTH_TOKEN in your config if WS_AUTH_MODE="required"
+
+        // Fix: Use the correct schema (ws://) and endpoint (/ws)
+        // Also added an optional token query parameter if the bridge is configured to require it
+        const wsUrl = `ws://localhost:8765/ws?token=${token}`;
+
+        console.log(`Attempting to connect to ${wsUrl}...`);
+        const socket = new WebSocket(wsUrl);
+        const statusEl = document.getElementById('status');
+        const telemetryEl = document.getElementById('telemetry');
+
+        // 2. Handle Telemetry (Receiver)
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                telemetryEl.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                console.error("Failed to parse incoming telemetry:", e);
+                telemetryEl.textContent = `Raw Data: ${event.data}`;
+            }
+        };
+
+        // 3. Handle Control (Sender)
+        let isArmed = false;
+        let controlInterval = null;
+
+        function startCommandStream() {
+            if (controlInterval) clearInterval(controlInterval);
+
+            // Send a command every 50ms (20Hz) to keep the deadman timer happy
+            controlInterval = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    const command = {
+                        vx: 0.0,
+                        vy: 0.0,
+                        vz: 0.0,
+                        yaw: 0.0,
+                        arm: isArmed
+                    };
+                    socket.send(JSON.stringify(command));
+                }
+            }, 50);
+        }
+
+        function sendArmCommand() {
+            isArmed = true;
+            console.log("Arming drone and starting 20Hz stream...");
+            startCommandStream();
+        }
+
+        function sendDisarmCommand() {
+            isArmed = false;
+            console.log("Disarming drone...");
+            // Keep streaming so we don't trigger the hardware deadman, just send arm=False
+            startCommandStream();
+        }
+
+        socket.onopen = () => {
+            console.log("Connected to Drone Bridge");
+            statusEl.textContent = "Connected";
+            statusEl.className = "connected";
+            // Start sending disarmed heartbeat immediately to satisfy deadman
+            startCommandStream();
+        };
+
+        socket.onclose = (e) => {
+            console.log("Disconnected:", e.code, e.reason);
+            statusEl.textContent = `Disconnected (Code: ${e.code})`;
+            statusEl.className = "disconnected";
+            if (controlInterval) clearInterval(controlInterval);
+        };
+
+        socket.onerror = (err) => {
+            console.error("WebSocket Error:", err);
+            statusEl.textContent = "Error occurred";
+            statusEl.className = "disconnected";
+            if (controlInterval) clearInterval(controlInterval);
+        };
+    </script>
+</body>
+
+</html>
