@@ -55,14 +55,34 @@ The PWA (Progressive Web App) sends flight commands to the Python bridge over We
 **Format:**
 ```json
 {
-  "ux": 0.0,
-  "uy": 0.0,
-  "uz": 1.0,
-  "yaw_rate": 0.0
+  "vx": 0.0,
+  "vy": 0.0,
+  "vz": 0.0,
+  "yaw": 0.0,
+  "arm": true
 }
 ```
 
-**Rules:**
-- Values are normalized floats between `-1.0` and `1.0`.
-- The Python bridge enforces a maximum message size (`CHUNK_MAX_MESSAGE_SIZE`) over BLE.
-- Commands are subject to a **Drop-Oldest Queue Policy** and a **Fail-Safe Deadman Timer** (if no command is received in 0.5s, the bridge auto-sends zeros).
+**Rules & Constraints:**
+- **Types**: `float` for `vx`, `vy`, `vz`, `yaw`; `boolean` for `arm`.
+- **Ranges**: All floats are strictly clamped to `[-1.0, +1.0]`.
+- **Frame**: Body frame.
+- **Yaw**: Represents a yaw *rate*. Sign convention: `+1.0` = Clockwise (CW).
+- **Frequency**: The PWA **MUST** transmit the full command state at exactly **30Hz** while armed.
+- **Completeness**: All fields (`vx`, `vy`, `vz`, `yaw`, `arm`) must be present in every tick. Partial updates are rejected to prevent state desynchronization.
+
+### Joystick Mapping (Mode 2)
+The PWA enforces a standard Mode 2 remote control layout:
+- **Right Stick Y (Up)** → `vx = +1.0` (Forward Pitch)
+- **Right Stick X (Right)** → `vy = +1.0` (Right Roll/Strafe)
+- **Left Stick Y (Up)** → `vz = +1.0` (Ascend/Throttle) - *Note: Self-centering in PWA*
+- **Left Stick X (Right)** → `yaw = +1.0` (Clockwise Yaw)
+
+### Disarm Semantics (Safety Critical)
+- `arm = false` explicitly means the motors must immediately spin down to OFF.
+- When the pilot triggers a disarm (via button toggle or emergency stop):
+  1. The UI joystick state is instantly zeroed.
+  2. The PWA immediately transmits `{vx:0, vy:0, vz:0, yaw:0, arm:false}`.
+  3. The PWA transmits this final disarm packet **once**.
+  4. The 30Hz loop is fully stopped.
+- The PWA **MUST NOT** rely on the bridge's deadman switch (0.5s timeout) for normal stopping behavior. The bridge deadman is a secondary fail-safe for connection loss only.
