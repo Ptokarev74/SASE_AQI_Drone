@@ -114,7 +114,7 @@ MAX_TELEMETRY_JSON_BYTES: int = 1024
 
 # --- Protocol Hardening ---
 # If True, both incoming and outgoing frames MUST have a trailing CRC32.
-BLE_CRC_REQUIRED: bool = False
+BLE_CRC_REQUIRED: bool = True
 
 # If True, ControlCommands are sent as dense binary packets instead of NDJSON.
 BLE_USE_BINARY_COMMANDS: bool = True
