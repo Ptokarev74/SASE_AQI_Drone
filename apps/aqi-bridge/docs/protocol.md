@@ -48,21 +48,37 @@ When the connection MTU is insufficient (e.g., the default 23-byte MTU allowing 
 - The resulting string must be valid JSON and falls under the `MAX_TELEMETRY_JSON_BYTES` enforcement limit.
 - If chunks for a given `seq_id` take longer than `CHUNK_ASSEMBLY_TIMEOUT_S` (2.0s) to arrive, the incomplete assembly is discarded.
 
-## 2. WebSocket Control Protocol (Bridge → Drone)
+## 2. WebSocket Control Protocol (PWA → Bridge)
 
-The PWA (Progressive Web App) sends flight commands to the Python bridge over WebSocket. The bridge parses the JSON, validates it against the `ControlCommand` schema, and serializes it over a BLE Write characteristic to the Arduino.
+The PWA sends flight commands to the Python bridge over WebSocket. The bridge parses the JSON, validates it against the `ControlCommand` Pydantic model (`aqi_bridge/models.py`), and serializes it into a binary packet sent over BLE to the Arduino.
 
 **Format:**
 ```json
 {
-  "ux": 0.0,
-  "uy": 0.0,
-  "uz": 1.0,
-  "yaw_rate": 0.0
+  "vx": 0.0,
+  "vy": 0.0,
+  "vz": 0.0,
+  "yaw": 0.0,
+  "arm": false
 }
 ```
 
-**Rules:**
-- Values are normalized floats between `-1.0` and `1.0`.
-- The Python bridge enforces a maximum message size (`CHUNK_MAX_MESSAGE_SIZE`) over BLE.
-- Commands are subject to a **Drop-Oldest Queue Policy** and a **Fail-Safe Deadman Timer** (if no command is received in 0.5s, the bridge auto-sends zeros).
+**Fields:**
+| Field | Type    | Range               | Description                                             |
+|-------|---------|---------------------|---------------------------------------------------------|
+| `vx`  | float   | `-10000.0..10000.0` | Forward/backward velocity. Positive = forward.          |
+| `vy`  | float   | `-10000.0..10000.0` | Left/right strafe. Positive = right.                    |
+| `vz`  | float   | `-10000.0..10000.0` | Vertical velocity. Positive = up.                       |
+| `yaw` | float   | `-10000.0..10000.0` | Yaw rate. Positive = clockwise (viewed from above).     |
+| `arm` | boolean | `true / false`      | Motor arm state. Must be `true` for the drone to move.  |
+
+**Wire Format (BLE):**
+The bridge serializes validated commands into a 21-byte binary packet before writing to `COMMAND_CHAR_UUID`:
+```
+[vx: f32][vy: f32][vz: f32][yaw: f32][arm: u8][crc32: u32]  (little-endian)
+```
+
+**Safety Rules:**
+- Commands are subject to a **Drop-Oldest Queue Policy**: if the queue is full, the oldest command is evicted to preserve freshness.
+- A **Deadman Timer** fires if no command is received within 0.5 s — the bridge auto-enqueues a zero/disarm failsafe and locks out further input until an explicit `arm: true` re-arm is sent.
+- Commands older than `MAX_COMMAND_AGE_MS` (300 ms) are silently dropped at dequeue time.
