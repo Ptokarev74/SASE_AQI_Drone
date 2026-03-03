@@ -12,6 +12,8 @@ services:
       - ALLOW_TOKEN_ROTATION=true
       - LOG_FORMAT=json
       - LOG_LEVEL=INFO
+    volumes:
+      - /var/run/dbus:/var/run/dbus
     logging:
       driver: "json-file"
       options:

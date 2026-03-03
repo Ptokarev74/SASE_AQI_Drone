@@ -57,6 +57,6 @@ When at the flight field, follow these steps in order:
 If running in Docker (Production):
 ```bash
 docker build -t sase-aqi-bridge:ci apps/aqi-bridge/
-docker run -it --network host sase-aqi-bridge:ci
+docker run -it --network host -v /var/run/dbus:/var/run/dbus sase-aqi-bridge:ci
 ```
-*Note: `--network host` is required on Linux for BLE access.*
+*Note: `--network host` and mapping `/var/run/dbus` are required on Linux for BLE access via BlueZ.*
