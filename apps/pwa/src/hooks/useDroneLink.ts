@@ -26,11 +26,23 @@ export function useDroneLink() {
     const [error, setError] = useState<string | null>(null);
     const [telemetry, setTelemetry] = useState<TelemetryMessage | null>(null);
 
+    // Dynamic bridge IP for hosted PWA
+    const [bridgeIp, setBridgeIpState] = useState(() => {
+        return localStorage.getItem('sase_bridge_ip') || window.location.hostname;
+    });
+
+    const setBridgeIp = useCallback((ip: string) => {
+        setBridgeIpState(ip);
+        localStorage.setItem('sase_bridge_ip', ip);
+    }, []);
+
     // Developer metrics
     const [txRate, setTxRate] = useState(0);
     const txCountRef = useRef(0);
 
     const socketRef = useRef<WebSocket | null>(null);
+    const reconnectTimerRef = useRef<number | null>(null);
+    const unmountedRef = useRef(false);
 
     // We use a ref for the joystick state so the 30Hz loop always sees the freshest values
     // without triggering React re-renders on every joystick micro-movement.
@@ -53,57 +65,9 @@ export function useDroneLink() {
         return () => clearInterval(interval);
     }, []);
 
-    const connect = useCallback(() => {
-        if (socketRef.current?.readyState === WebSocket.OPEN) return;
-
-        // Note: Replace with true exact URL when deploying off localhost
-        const wssUrl = `ws://${window.location.hostname}:8765/ws?token=your_token_here`;
-        const ws = new WebSocket(wssUrl);
-
-        ws.onopen = () => {
-            setIsConnected(true);
-            setError(null);
-            console.log("Drone WebSocket Connected");
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                setTelemetry(data);
-            } catch (err) {
-                console.error("Telemetry parse error", err);
-            }
-        };
-
-        ws.onclose = () => {
-            setIsConnected(false);
-            console.log("Drone WebSocket Disconnected");
-            stopControlLoop();
-            setTimeout(connect, 3000); // Auto-reconnect
-        };
-
-        ws.onerror = (e) => {
-            setError("WebSocket Error occurred");
-            console.error("WS Error", e);
-        };
-
-        socketRef.current = ws;
-    }, []);
-
-    useEffect(() => {
-        connect();
-        return () => {
-            stopControlLoop();
-            if (socketRef.current) {
-                socketRef.current.close();
-            }
-        };
-    }, [connect]);
-
-
     // ---------- STRICT CONTROL SEMANTICS ----------
 
-    // Safely clamp values to [-1.0, +1.0] and format to 4 decimal places
+    // Safely clamp values to [-1.0, +1.0]
     const buildCommand = (): ControlCommand => {
         const raw = joystickStateRef.current;
         return {
@@ -163,6 +127,86 @@ export function useDroneLink() {
         };
     };
 
+
+    // ---------- CONNECTION MANAGEMENT ----------
+
+    const connect = useCallback(() => {
+        // Don't reconnect if we've been unmounted
+        if (unmountedRef.current) return;
+
+        // Guard against duplicate connections
+        if (socketRef.current?.readyState === WebSocket.OPEN ||
+            socketRef.current?.readyState === WebSocket.CONNECTING) return;
+
+        const wssUrl = `ws://${bridgeIp}:8765/ws?token=your_token_here`;
+        const ws = new WebSocket(wssUrl);
+
+        ws.onopen = () => {
+            setIsConnected(true);
+            setError(null);
+            console.log(`Drone WebSocket Connected to ${bridgeIp}`);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                setTelemetry(data);
+            } catch (err) {
+                console.error("Telemetry parse error", err);
+            }
+        };
+
+        ws.onclose = () => {
+            setIsConnected(false);
+            console.log("Drone WebSocket Disconnected");
+
+            // SAFETY: Force disarm on disconnect — no runaway commands
+            joystickStateRef.current = { vx: 0, vy: 0, vz: 0, yaw: 0, arm: false };
+            stopControlLoop();
+
+            // Fix: Null the ref so the guard in connect() doesn't see a stale CLOSED socket
+            socketRef.current = null;
+
+            // Auto-reconnect with cleanup tracking
+            if (!unmountedRef.current) {
+                reconnectTimerRef.current = window.setTimeout(connect, 3000);
+            }
+        };
+
+        ws.onerror = (e) => {
+            setError("WebSocket Error occurred");
+            console.error("WS Error", e);
+        };
+
+        socketRef.current = ws;
+    }, [bridgeIp]); // Re-create connect function if IP changes
+
+    useEffect(() => {
+        unmountedRef.current = false;
+        connect();
+
+        return () => {
+            // Mark unmounted to prevent zombie reconnect timers
+            unmountedRef.current = true;
+
+            // Cancel any pending reconnect timer
+            if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current);
+                reconnectTimerRef.current = null;
+            }
+
+            // Stop the control loop
+            stopControlLoop();
+
+            // Close the WebSocket (triggering reconnect if IP changed)
+            if (socketRef.current) {
+                socketRef.current.close();
+                socketRef.current = null;
+            }
+        };
+    }, [connect]); // Re-run effect if connect function changes
+
+
     return {
         isConnected,
         error,
@@ -170,6 +214,8 @@ export function useDroneLink() {
         setArmed,
         updateAxes,
         currentCommand: joystickStateRef.current, // For the debug view
-        txRate // Commands sent per second
+        txRate, // Commands sent per second
+        bridgeIp,
+        setBridgeIp
     };
 }

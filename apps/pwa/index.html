@@ -3,9 +3,30 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pwa</title>
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>SASE AQI Drone</title>
+  <meta name="description"
+    content="SASE AQI Drone Control Dashboard — real-time telemetry and flight controls via WebSocket." />
+  <meta name="theme-color" content="#020617" />
+
+  <!-- iOS PWA Support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AQI Drone" />
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+
+  <!-- PWA manifest is injected by vite-plugin-pwa -->
+  <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+
+  <!-- Prevent pull-to-refresh and overscroll on mobile -->
+  <style>
+    html,
+    body {
+      overscroll-behavior: none;
+      touch-action: manipulation;
+    }
+  </style>
 </head>
 
 <body>
