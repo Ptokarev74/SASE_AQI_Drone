@@ -5,6 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/SASE_AQI_Drone/',
+  preview: {
+    allowedHosts: true
+  },
   plugins: [
     react(),
     tailwindcss(),

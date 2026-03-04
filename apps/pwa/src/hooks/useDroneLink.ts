@@ -26,6 +26,16 @@ export function useDroneLink() {
     const [error, setError] = useState<string | null>(null);
     const [telemetry, setTelemetry] = useState<TelemetryMessage | null>(null);
 
+    // Dynamic bridge IP for hosted PWA
+    const [bridgeIp, setBridgeIpState] = useState(() => {
+        return localStorage.getItem('sase_bridge_ip') || window.location.hostname;
+    });
+
+    const setBridgeIp = useCallback((ip: string) => {
+        setBridgeIpState(ip);
+        localStorage.setItem('sase_bridge_ip', ip);
+    }, []);
+
     // Developer metrics
     const [txRate, setTxRate] = useState(0);
     const txCountRef = useRef(0);
@@ -128,14 +138,13 @@ export function useDroneLink() {
         if (socketRef.current?.readyState === WebSocket.OPEN ||
             socketRef.current?.readyState === WebSocket.CONNECTING) return;
 
-        // Note: Replace with true exact URL when deploying off localhost
-        const wssUrl = `ws://${window.location.hostname}:8765/ws?token=your_token_here`;
+        const wssUrl = `ws://${bridgeIp}:8765/ws?token=your_token_here`;
         const ws = new WebSocket(wssUrl);
 
         ws.onopen = () => {
             setIsConnected(true);
             setError(null);
-            console.log("Drone WebSocket Connected");
+            console.log(`Drone WebSocket Connected to ${bridgeIp}`);
         };
 
         ws.onmessage = (event) => {
@@ -170,7 +179,7 @@ export function useDroneLink() {
         };
 
         socketRef.current = ws;
-    }, []);
+    }, [bridgeIp]); // Re-create connect function if IP changes
 
     useEffect(() => {
         unmountedRef.current = false;
@@ -189,13 +198,13 @@ export function useDroneLink() {
             // Stop the control loop
             stopControlLoop();
 
-            // Close the WebSocket
+            // Close the WebSocket (triggering reconnect if IP changed)
             if (socketRef.current) {
                 socketRef.current.close();
                 socketRef.current = null;
             }
         };
-    }, [connect]);
+    }, [connect]); // Re-run effect if connect function changes
 
 
     return {
@@ -205,6 +214,8 @@ export function useDroneLink() {
         setArmed,
         updateAxes,
         currentCommand: joystickStateRef.current, // For the debug view
-        txRate // Commands sent per second
+        txRate, // Commands sent per second
+        bridgeIp,
+        setBridgeIp
     };
 }

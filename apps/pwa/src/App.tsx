@@ -29,7 +29,7 @@ function useIsMobile(): boolean {
 }
 
 function App() {
-  const { isConnected, telemetry, setArmed, updateAxes, currentCommand, txRate } = useDroneLink();
+  const { isConnected, telemetry, setArmed, updateAxes, currentCommand, txRate, bridgeIp, setBridgeIp } = useDroneLink();
   const [isArmed, setIsArmedUI] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const isMobile = useIsMobile();
@@ -119,10 +119,22 @@ function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">SASE AQI Drone</h1>
-            <p className="text-xs text-slate-400 font-medium tracking-wide">
-              {isConnected ? 'LINK ESTABLISHED' : 'LINK OFFLINE'}
-              <span className="ml-2 text-slate-600">{isMobile ? '📱 TOUCH' : '⌨️ KEYBOARD'}</span>
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-1">
+              <p className="text-xs text-slate-400 font-medium tracking-wide">
+                {isConnected ? 'LINK ESTABLISHED' : 'LINK OFFLINE'}
+                <span className="ml-2 text-slate-600 hidden sm:inline">{isMobile ? '📱 TOUCH' : '⌨️ KEYBOARD'}</span>
+              </p>
+              <div className="flex items-center gap-2 bg-slate-800/80 rounded-md px-2 py-1 border border-slate-700">
+                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Bridge IP:</span>
+                <input
+                  type="text"
+                  value={bridgeIp}
+                  onChange={(e) => setBridgeIp(e.target.value)}
+                  className="bg-transparent text-xs font-mono text-cyan-400 focus:outline-none w-24 sm:w-32 placeholder-slate-600"
+                  placeholder="e.g. 192.168.1.5"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
