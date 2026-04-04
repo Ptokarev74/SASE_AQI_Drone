@@ -20,7 +20,7 @@ float roll_des = 0, pitch_des = 0, yaw_des = 0;
 void calculatePID() {
     // --- ROLL ---
     float error_roll = roll_des - roll_IMU;
-    if (thro_des >= PWM_MIN + 50) {
+    if (thro_des >= PWM_OFF + 50) {
         integral_roll += error_roll * dt;
     }
     integral_roll = constrain(integral_roll, -i_limit, i_limit);
@@ -28,7 +28,7 @@ void calculatePID() {
 
     // --- PITCH ---
     float error_pitch = pitch_des - pitch_IMU;
-    if (thro_des >= PWM_MIN + 50) {
+    if (thro_des >= PWM_OFF + 50) {
         integral_pitch += error_pitch * dt;
     }
     integral_pitch = constrain(integral_pitch, -i_limit, i_limit);
@@ -36,7 +36,7 @@ void calculatePID() {
 
     // --- YAW ---
     float error_yaw = yaw_des - yaw_IMU; 
-    if (thro_des >= PWM_MIN + 50) {
+    if (thro_des >= PWM_OFF + 50) {
         integral_yaw += error_yaw * dt;
     }
     integral_yaw = constrain(integral_yaw, -i_limit, i_limit);

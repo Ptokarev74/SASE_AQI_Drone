@@ -68,7 +68,7 @@ const int PWM_MAX = 2000;
 const int PWM_REFRESH_HZ = 300;  // 300 Hz refresh rate response
 
 // --- THROTTLE ---
-int thro_des = 0;
+volatile int thro_des = 0;
 
 void initMotors() {
     for (int i = 0; i < 4; i++) {

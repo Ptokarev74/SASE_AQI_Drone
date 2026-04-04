@@ -76,32 +76,34 @@ bool initIMU() {
 }
 
 void readIMU() {
-  if (bno08x.getSensorEvent(&sensorValue)) {
-    switch (sensorValue.sensorId) {
-        case SH2_GAME_ROTATION_VECTOR:
-            float r = sensorValue.un.gameRotationVector.real;
-            float i = sensorValue.un.gameRotationVector.i;
-            float j = sensorValue.un.gameRotationVector.j;
-            float k = sensorValue.un.gameRotationVector.k;
-            float rawR, rawP, rawY;
-            quaternionToEuler(r, i, j, k, rawR, rawP, rawY);
-            
-            roll_IMU = rawR - rollOffset;
-            pitch_IMU = rawP - pitchOffset;
-            yaw_IMU = rawY - yawOffset;
-            break;
-
-        case SH2_GYROSCOPE_CALIBRATED:
-            gyroX = sensorValue.un.gyroscope.x * 180.0 / M_PI;
-            gyroY = sensorValue.un.gyroscope.y * 180.0 / M_PI;
-            gyroZ = sensorValue.un.gyroscope.z * 180.0 / M_PI;
-            break;
-        
-        case SH2_LINEAR_ACCELERATION:
-            float ax = sensorValue.un.linearAcceleration.x;
-            float ay = sensorValue.un.linearAcceleration.y;
-            float az = sensorValue.un.linearAcceleration.z;
-            // Use for velocity estimation or other purposes as needed
-            break;
+    if (bno08x.getSensorEvent(&sensorValue)) {
+        switch (sensorValue.sensorId) {
+            case SH2_GAME_ROTATION_VECTOR: {
+                float r = sensorValue.un.gameRotationVector.real;
+                float i = sensorValue.un.gameRotationVector.i;
+                float j = sensorValue.un.gameRotationVector.j;
+                float k = sensorValue.un.gameRotationVector.k;
+                float rawR, rawP, rawY;
+                quaternionToEuler(r, i, j, k, rawR, rawP, rawY);
+                
+                roll_IMU = rawR - rollOffset;
+                pitch_IMU = rawP - pitchOffset;
+                yaw_IMU = rawY - yawOffset;
+                break;
+            }
+            case SH2_GYROSCOPE_CALIBRATED: {
+                gyroX = sensorValue.un.gyroscope.x * 180.0 / M_PI;
+                gyroY = sensorValue.un.gyroscope.y * 180.0 / M_PI;
+                gyroZ = sensorValue.un.gyroscope.z * 180.0 / M_PI;
+                break;
+            }
+            case SH2_LINEAR_ACCELERATION: {
+                float ax = sensorValue.un.linearAcceleration.x;
+                float ay = sensorValue.un.linearAcceleration.y;
+                float az = sensorValue.un.linearAcceleration.z;
+                // Use for velocity estimation or other purposes as needed
+                break;
+            }
+        }
     }
 }

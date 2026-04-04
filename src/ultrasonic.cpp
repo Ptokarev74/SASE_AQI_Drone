@@ -14,13 +14,6 @@ int distance_cm = 0; // Latest valid distance reading in cm
 // Timeout in microseconds (e.g., 30ms = 30000 µs)
 const unsigned long ECHO_TIMEOUT_US = 30000;
 
-// Call this once in setup()
-void initUltrasonic() {
-    pinMode(TRIG_PIN, OUTPUT);
-    pinMode(ECHO_PIN, INPUT);
-    attachInterrupt(digitalPinToInterrupt(ECHO_PIN), echoISR, CHANGE);
-}
-
 // ISR – must be very fast, no Serial.print, no delay
 void echoISR() {
     if (digitalReadFast(ECHO_PIN) == HIGH) {
@@ -34,6 +27,15 @@ void echoISR() {
         echo_received = true;
     }
 }
+
+// Call this once in setup()
+void initUltrasonic() {
+    pinMode(TRIG_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(ECHO_PIN), echoISR, CHANGE);
+}
+
+
 
 // Non‑blocking trigger function – call it when you want a new reading
 void startUltrasonicMeasurement() {

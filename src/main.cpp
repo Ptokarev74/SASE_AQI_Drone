@@ -8,6 +8,7 @@
 #include "states.h"
 #include "ultrasonic.h"
 #include "baromter.h"
+#include "bluetooth.h"
 
 // --- TIMING ---
 unsigned long current_time, prev_time;
@@ -28,15 +29,17 @@ void setup() {
 			delay(500);
 		}
 	}
+	// Initialize Bluetooth
+	initBluetooth(9600);
 	// Initialize state machine
 	initStates();
 	// Initialize IMU
 	if (!initIMU()){
 		while (1) {
-			digitalWrite(LED_BUILTIN, LOW); // Blink built-in LED to indicate IMU init failure
-			delay(1000);
+			digitalWrite(LED_BUILTIN, LOW);
+			delay(1500);
 			digitalWrite(LED_BUILTIN, HIGH);
-			delay(1000);
+			delay(1500);
 		}
 	}
 	// Initialize motors
@@ -52,10 +55,23 @@ void loop() {
 
 	// Get latest distance reading (non-blocking)
 	getUltrasonicDistanceCM();
+	updateBarometer(); // Update barometer readings (non-blocking)
+	bluetoothPoll();
+	if (bluetoothMessageAvailable()) {
+		String message;
+		if (bluetoothReadMessage(message)) {
+			// TODO: Deserialize `message` and update flight state or commands
+			// Example:
+			// StaticJsonDocument<256> doc;
+			// DeserializationError err;
+			// if (bluetoothParseMessage(message, doc, err)) {
+			//     // Process the JSON object here
+			// }
+		}
+	}
 	// Update state machine based on sensor readings and time
 	updateStates();
 
-	
 	readIMU();
 	calculatePID();
 	mixMotors();
