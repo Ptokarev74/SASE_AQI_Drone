@@ -36,6 +36,15 @@
             max-width: 1200px;
             display: flex;
             justify-content: center;
+            padding-top: 2rem;
+        }
+
+        .control-layout {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            width: 100%;
         }
 
         .container {
@@ -124,16 +133,13 @@
         }
 
         .throttle-panel {
-            position: fixed;
-            right: 2rem;
-            top: 50%;
-            transform: translateY(-50%);
             background-color: #333333;
             padding: 15px;
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
             width: 112px;
             z-index: 10;
+            flex: 0 0 auto;
         }
 
         .throttle-label {
@@ -189,24 +195,32 @@
             box-shadow: 0 0 8px rgba(57, 211, 83, 0.85);
         }
 
-        @media (min-width: 980px) {
-            body {
-                padding-right: 10rem;
-            }
-        }
-
         @media (min-width: 800px) {
             .programs-panel {
                 position: absolute;
-                right: 2rem;
+                left: 0;
                 top: 2rem;
                 margin: 0;
             }
         }
 
+        @media (max-width: 799px) {
+            .app-shell {
+                padding-top: 0;
+            }
+
+            .control-layout {
+                flex-direction: column;
+            }
+
+            .programs-panel {
+                position: static;
+                margin-bottom: 1.5rem;
+            }
+        }
+
         @media (max-width: 979px) {
             .throttle-panel {
-                right: 1rem;
                 width: 96px;
             }
         }
@@ -214,45 +228,47 @@
 </head>
 <body>
     <div class="app-shell">
-        <div class="container">
-            <h1>Drone Flight Control</h1>
-            <p>Send commands to HC-05 via Bluetooth</p>
-
-            <div class="d-pad">
-                <div class="btn empty"></div>
-                <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
-                <div class="btn empty"></div>
-                <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
-                <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
-                <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
+        <div class="container programs-panel" style="max-width: 300px;">
+            <h2 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.5rem;">Programs</h2>
+            <p>Automated flight sequences</p>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button class="btn" style="background-color: #03dac6; color: #000;" onclick="flySquare()">Square (5s)</button>
             </div>
-
-            <div class="actions">
-                <button class="btn" onclick="sendCommand('takeoff', 5.0)">Takeoff</button>
-                <button class="btn btn-land" onclick="sendCommand('land', 0.0)">Land</button>
-            </div>
-
-            <div class="status" id="status-msg">Idle.</div>
         </div>
 
-        <div class="throttle-panel">
-            <label class="throttle-label" for="throttle">Throttle (0-1000): <strong id="throttle-val">0</strong></label>
-            <div class="throttle-controls">
-                <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(50)">&#9650;</button>
-                <div class="throttle-scale">
-                    <input type="hidden" id="throttle" name="throttle" value="0">
-                    <div class="throttle-ticks" id="throttle-ticks" aria-hidden="true"></div>
+        <div class="control-layout">
+            <div class="container">
+                <h1>Drone Flight Control</h1>
+                <p>Send commands to HC-05 via Bluetooth</p>
+
+                <div class="d-pad">
+                    <div class="btn empty"></div>
+                    <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
+                    <div class="btn empty"></div>
+                    <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
+                    <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
+                    <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
                 </div>
-                <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(-50)">&#9660;</button>
-            </div>
-        </div>
-    </div>
 
-    <div class="container programs-panel" style="max-width: 300px;">
-        <h2 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.5rem;">Programs</h2>
-        <p>Automated flight sequences</p>
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-            <button class="btn" style="background-color: #03dac6; color: #000;" onclick="flySquare()">Square (5s)</button>
+                <div class="actions">
+                    <button class="btn" onclick="sendCommand('takeoff', 5.0)">Takeoff</button>
+                    <button class="btn btn-land" onclick="sendCommand('land', 0.0)">Land</button>
+                </div>
+
+                <div class="status" id="status-msg">Idle.</div>
+            </div>
+
+            <div class="throttle-panel">
+                <label class="throttle-label" for="throttle">Throttle (0-1000): <strong id="throttle-val">0</strong></label>
+                <div class="throttle-controls">
+                    <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(50)">&#9650;</button>
+                    <div class="throttle-scale">
+                        <input type="hidden" id="throttle" name="throttle" value="0">
+                        <div class="throttle-ticks" id="throttle-ticks" aria-hidden="true"></div>
+                    </div>
+                    <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(-50)">&#9660;</button>
+                </div>
+            </div>
         </div>
     </div>
 
