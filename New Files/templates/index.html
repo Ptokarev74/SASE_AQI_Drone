@@ -30,6 +30,14 @@
             flex-wrap: wrap;
         }
 
+        .app-shell {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: center;
+        }
+
         .container {
             background-color: var(--surface-color);
             padding: 2rem;
@@ -116,15 +124,23 @@
         }
 
         .throttle-panel {
-            margin-top: 1.5rem;
+            position: fixed;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
             background-color: #333333;
             padding: 15px;
             border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            width: 112px;
+            z-index: 10;
         }
 
         .throttle-label {
             color: var(--text-secondary);
             font-size: 0.9rem;
+            display: block;
+            text-align: center;
         }
 
         .throttle-label strong {
@@ -147,76 +163,36 @@
         }
 
         .throttle-scale {
-            position: relative;
-            width: 96px;
-            height: 320px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .throttle-bar {
-            position: absolute;
-            width: 320px;
-            height: 28px;
-            margin: 0;
-            transform: rotate(-90deg);
-            transform-origin: center;
-            accent-color: var(--primary);
-            cursor: pointer;
-            background: transparent;
-        }
-
-        .throttle-bar::-webkit-slider-runnable-track {
-            height: 12px;
-            background: #1f1f1f;
-            border: 1px solid #555555;
-            border-radius: 999px;
-        }
-
-        .throttle-bar::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 24px;
-            height: 24px;
-            margin-top: -7px;
-            border: 2px solid var(--primary);
-            border-radius: 50%;
-            background: var(--surface-color);
-        }
-
-        .throttle-bar::-moz-range-track {
-            height: 12px;
-            background: #1f1f1f;
-            border: 1px solid #555555;
-            border-radius: 999px;
-        }
-
-        .throttle-bar::-moz-range-thumb {
-            width: 24px;
-            height: 24px;
-            border: 2px solid var(--primary);
-            border-radius: 50%;
-            background: var(--surface-color);
+            width: 36px;
         }
 
         .throttle-ticks {
-            position: absolute;
-            right: 10px;
-            top: 0;
-            bottom: 0;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            gap: 6px;
             pointer-events: none;
         }
 
         .throttle-tick {
-            width: 10px;
+            width: 100%;
             height: 10px;
             border: 1px solid rgba(255, 255, 255, 0.35);
             border-radius: 2px;
             background: rgba(255, 255, 255, 0.08);
+            box-sizing: border-box;
+        }
+
+        .throttle-tick.active {
+            background: #39d353;
+            border-color: #6ee787;
+            box-shadow: 0 0 8px rgba(57, 211, 83, 0.85);
+        }
+
+        @media (min-width: 980px) {
+            body {
+                padding-right: 10rem;
+            }
         }
 
         @media (min-width: 800px) {
@@ -227,25 +203,36 @@
                 margin: 0;
             }
         }
+
+        @media (max-width: 979px) {
+            .throttle-panel {
+                right: 1rem;
+                width: 96px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Drone Flight Control</h1>
-        <p>Send commands to HC-05 via Bluetooth</p>
+    <div class="app-shell">
+        <div class="container">
+            <h1>Drone Flight Control</h1>
+            <p>Send commands to HC-05 via Bluetooth</p>
 
-        <div class="d-pad">
-            <div class="btn empty"></div>
-            <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
-            <div class="btn empty"></div>
-            <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
-            <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
-            <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
-        </div>
+            <div class="d-pad">
+                <div class="btn empty"></div>
+                <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
+                <div class="btn empty"></div>
+                <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
+                <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
+                <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
+            </div>
 
-        <div class="actions">
-            <button class="btn" onclick="sendCommand('takeoff', 5.0)">Takeoff</button>
-            <button class="btn btn-land" onclick="sendCommand('land', 0.0)">Land</button>
+            <div class="actions">
+                <button class="btn" onclick="sendCommand('takeoff', 5.0)">Takeoff</button>
+                <button class="btn btn-land" onclick="sendCommand('land', 0.0)">Land</button>
+            </div>
+
+            <div class="status" id="status-msg">Idle.</div>
         </div>
 
         <div class="throttle-panel">
@@ -253,25 +240,12 @@
             <div class="throttle-controls">
                 <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(50)">&#9650;</button>
                 <div class="throttle-scale">
-                    <input
-                        type="range"
-                        id="throttle"
-                        name="throttle"
-                        class="throttle-bar"
-                        min="0"
-                        max="1000"
-                        step="50"
-                        value="0"
-                        oninput="updateThrottleUI(this.value)"
-                        onchange="setThrottle(this.value)"
-                    >
+                    <input type="hidden" id="throttle" name="throttle" value="0">
                     <div class="throttle-ticks" id="throttle-ticks" aria-hidden="true"></div>
                 </div>
                 <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(-50)">&#9660;</button>
             </div>
         </div>
-
-        <div class="status" id="status-msg">Idle.</div>
     </div>
 
     <div class="container programs-panel" style="max-width: 300px;">
@@ -311,6 +285,11 @@
             if (throttleValue) {
                 throttleValue.textContent = clampedValue;
             }
+
+            document.querySelectorAll('#throttle-ticks .throttle-tick').forEach((tick, index, ticks) => {
+                const tickValue = (ticks.length - 1 - index) * THROTTLE_STEP;
+                tick.classList.toggle('active', tickValue <= clampedValue);
+            });
 
             return clampedValue;
         }
