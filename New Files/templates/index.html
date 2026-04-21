@@ -17,14 +17,17 @@
 
         body {
             margin: 0;
-            padding: 0;
+            padding: 2rem;
+            box-sizing: border-box;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
+            gap: 2rem;
+            flex-wrap: wrap;
         }
 
         .container {
@@ -111,6 +114,15 @@
             color: var(--text-secondary);
             min-height: 20px;
         }
+
+        @media (min-width: 800px) {
+            .programs-panel {
+                position: absolute;
+                right: 2rem;
+                top: 2rem;
+                margin: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -138,6 +150,14 @@
         </div>
 
         <div class="status" id="status-msg">Idle.</div>
+    </div>
+
+    <div class="container programs-panel" style="max-width: 300px;">
+        <h2 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.5rem;">Programs</h2>
+        <p>Automated flight sequences</p>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <button class="btn" style="background-color: #03dac6; color: #000;" onclick="flySquare()">Square (5s)</button>
+        </div>
     </div>
 
     <script>
@@ -196,6 +216,30 @@
 
             // Remove the temp message lock after a few seconds so polling resumes
             setTimeout(() => { statusEl.setAttribute('data-temp-msg', "false"); }, 3000);
+        }
+
+        async function flySquare() {
+            const sideDuration = 1250; // 1.25 seconds per side
+
+            // Forward
+            await sendCommand('forward', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_pitch', 0.0);
+
+            // Right
+            await sendCommand('right', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_roll', 0.0);
+
+            // Backward
+            await sendCommand('backward', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_pitch', 0.0);
+
+            // Left
+            await sendCommand('left', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_roll', 0.0);
         }
 
         // Map WASD keys to drone movement

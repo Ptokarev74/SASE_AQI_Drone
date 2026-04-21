@@ -23,7 +23,7 @@ unsigned long lastDistanceSampleTime = 0;
 void initStates() {
     State = IDLE;
     // Initialize to idle state
-    thro_des = PWM_OFF;
+    thro_des = 0;
     roll_des = 0;
     pitch_des = 0;
     yaw_des = 0;
@@ -108,7 +108,7 @@ void updateStates() {
     switch (State) {
         case IDLE:
             // Motors off, wait for takeoff command
-            thro_des = PWM_OFF;
+            thro_des = 0;
             roll_des = 0;
             pitch_des = 0;
             yaw_des = 0;
@@ -116,6 +116,16 @@ void updateStates() {
             break;
 
         case TAKEOFF:
+            if (takeoffStartTime == 0) {
+                takeoffStartTime = millis();
+            }
+            if (millis() - takeoffStartTime < takeoffDuration) {
+                // smoothly ramp from 0 to hover throttle (approx 450 out of 1000)
+                thro_des = map(millis() - takeoffStartTime, 0, takeoffDuration, 0, 450); 
+            } else {
+                thro_des = 450; // Set hover throttle
+                setState(USERCNTRL); // Transition to manual overrides
+            }
             break;
         case USERCNTRL:
             break;

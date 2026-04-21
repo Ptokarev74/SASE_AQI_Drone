@@ -21,10 +21,6 @@ void bluetoothPoll() {
     while (Serial1.available() > 0) {
         char c = (char)Serial1.read();
         
-        // DEBUG: Force print the exact raw incoming ASCII integer so we know the RX wire is physically receiving data!
-        Serial1.print("RX BYTE: ");
-        Serial1.println((int)c);
-
         lastBluetoothSendTime = millis();
         if (c == '\r') {
             continue;
