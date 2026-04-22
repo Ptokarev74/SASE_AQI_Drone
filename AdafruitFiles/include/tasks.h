@@ -2,5 +2,6 @@
 #define TASKS_H
 
 void flightTask(void *parameter);
+void telemetryTask(void *parameter);
 
 #endif

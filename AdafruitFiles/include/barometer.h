@@ -4,6 +4,7 @@
 bool initBarometer();
 bool updateBarometer();
 bool isBarometerReady();
+bool isBarometerOk();
 float getLatestPressureHpa();
 float getLatestAltitudeM();
 

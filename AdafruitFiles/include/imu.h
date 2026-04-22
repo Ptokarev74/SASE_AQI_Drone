@@ -15,6 +15,7 @@ extern float gyroZ;
 extern float rollOffset;
 extern float pitchOffset;
 extern float yawOffset;
+extern bool imuReady;
 
 bool initIMU();
 void readIMU();

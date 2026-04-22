@@ -8,6 +8,22 @@
 #include "tasks.h"
 
 float dt = 0.0025f;
+bool flightSystemReady = false;
+
+static bool createPinnedTask(TaskFunction_t taskCode,
+                             const char *name,
+                             uint32_t stackDepth,
+                             UBaseType_t priority,
+                             BaseType_t coreId) {
+    const BaseType_t result =
+        xTaskCreatePinnedToCore(taskCode, name, stackDepth, nullptr, priority, nullptr, coreId);
+    if (result != pdPASS) {
+        Serial.print("Task create failed: ");
+        Serial.println(name);
+        return false;
+    }
+    return true;
+}
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
@@ -19,11 +35,27 @@ void setup() {
 
     initBluetooth(BT_BAUD);
     initMotors();
-    initIMU();
-    initSensors();
+    const bool imuOk = initIMU();
+    const bool sensorsOk = initSensors();
+    flightSystemReady = imuOk;
+    if (!sensorsOk) {
+        Serial.println("Warning: no healthy sensors at boot");
+    }
+    if (!flightSystemReady) {
+        Serial.println("Flight disabled: critical IMU initialization failed");
+        stopMotors();
+    }
 
-    xTaskCreatePinnedToCore(flightTask, "flightTask", 8192, nullptr, 3, nullptr, FLIGHT_CORE);
-    xTaskCreatePinnedToCore(sensorTask, "sensorTask", 8192, nullptr, 2, nullptr, SENSOR_CORE);
+    // Pin the control loop away from slower I2C/range-sensor polling.
+    const bool tasksOk =
+        createPinnedTask(flightTask, "flightTask", 8192, 3, FLIGHT_CORE) &&
+        createPinnedTask(sensorTask, "sensorTask", 8192, 2, SENSOR_CORE) &&
+        createPinnedTask(telemetryTask, "telemetryTask", 4096, 1, SENSOR_CORE);
+    if (!tasksOk) {
+        flightSystemReady = false;
+        stopMotors();
+        Serial.println("Flight disabled: task creation failed");
+    }
 
     digitalWrite(LED_BUILTIN, LOW);
 }

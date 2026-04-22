@@ -9,6 +9,8 @@
 #define ESP_ARDUINO_VERSION_MAJOR 2
 #endif
 
+// Wrap the ESP32 LEDC API so the rest of the motor code can stay in ESC
+// pulse-width units instead of raw timer duty counts.
 class EscOutput {
 public:
     void attach(int pin, int channel) {
@@ -27,6 +29,7 @@ public:
     void writeMicroseconds(int microseconds) const {
         microseconds = constrain(microseconds, PWM_OFF_US, PWM_MAX_US);
         const uint32_t maxDuty = (1UL << ESC_PWM_BITS) - 1UL;
+        // LEDC duty is expressed as a fraction of one PWM period.
         const uint32_t duty = (uint32_t)((uint64_t)microseconds * ESC_PWM_HZ * maxDuty / 1000000ULL);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
         ledcWrite(pin_, duty);
@@ -55,6 +58,7 @@ void initMotors() {
     for (int i = 0; i < 4; i++) {
         escs[i].attach(MOTOR_PINS[i], i);
     }
+    // Give the ESCs time to see a stable minimum-throttle signal at boot.
     delay(3000);
 }
 
@@ -65,13 +69,14 @@ void stopMotors() {
 }
 
 void mixMotors() {
-    if (state == IDLE) {
+    if (state == IDLE || throttleDesired < PID_ACTIVE_THROTTLE_OFFSET_US) {
         stopMotors();
         return;
     }
 
     const int base = PWM_OFF_US + throttleDesired;
     int motorOutputs[4];
+    // Motor order: front-right, back-right, back-left, front-left.
     motorOutputs[0] = (int)(base + rollPid - pitchPid + yawPid);
     motorOutputs[1] = (int)(base + rollPid + pitchPid - yawPid);
     motorOutputs[2] = (int)(base - rollPid + pitchPid + yawPid);

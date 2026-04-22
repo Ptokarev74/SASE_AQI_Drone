@@ -60,6 +60,7 @@ static constexpr int ESC_PWM_BITS = 12;
 static constexpr int PWM_OFF_US = 1000;
 static constexpr int PWM_MAX_US = 2000;
 static constexpr int THROTTLE_MAX_OFFSET_US = PWM_MAX_US - PWM_OFF_US;
+static constexpr int PID_ACTIVE_THROTTLE_OFFSET_US = 50;
 
 static constexpr int FLIGHT_CORE = 1;
 static constexpr int SENSOR_CORE = 0;

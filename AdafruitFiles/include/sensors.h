@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+// Latest cross-task sensor values. Distances are cm, altitude is meters, and
+// pressure is hPa.
 struct SensorSnapshot {
     float altitudeM = 0.0f;
     float pressureHpa = 0.0f;
@@ -14,7 +16,8 @@ struct SensorSnapshot {
     uint32_t updatedMs = 0;
 };
 
-void initSensors();
+bool initSensors();
+bool areSensorsReady();
 SensorSnapshot getSensorSnapshot();
 void publishSensorSnapshot();
 void sensorTask(void *parameter);

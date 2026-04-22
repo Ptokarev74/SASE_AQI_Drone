@@ -1,9 +1,11 @@
 #include <Arduino.h>
 
+#include "hardware_config.h"
 #include "imu.h"
 #include "main.h"
 #include "motors.h"
 #include "pid.h"
+#include "utils.h"
 
 float kpRoll = 1.5f;
 float kiRoll = 0.5f;
@@ -28,24 +30,29 @@ float pitchDesired = 0.0f;
 float yawDesired = 0.0f;
 
 void calculatePID() {
-    const float errorRoll = rollDesired - rollIMU;
-    if (throttleDesired >= 50) {
-        integralRoll += errorRoll * dt;
+    if (throttleDesired < PID_ACTIVE_THROTTLE_OFFSET_US) {
+        integralRoll = 0.0f;
+        integralPitch = 0.0f;
+        integralYaw = 0.0f;
+        rollPid = 0.0f;
+        pitchPid = 0.0f;
+        yawPid = 0.0f;
+        return;
     }
+
+    const float errorRoll = rollDesired - rollIMU;
+    integralRoll += errorRoll * dt;
     integralRoll = constrain(integralRoll, -integralLimit, integralLimit);
+    // Derivative uses gyro rate directly to avoid differentiating noisy angles.
     rollPid = (kpRoll * errorRoll) + (kiRoll * integralRoll) - (kdRoll * gyroX);
 
     const float errorPitch = pitchDesired - pitchIMU;
-    if (throttleDesired >= 50) {
-        integralPitch += errorPitch * dt;
-    }
+    integralPitch += errorPitch * dt;
     integralPitch = constrain(integralPitch, -integralLimit, integralLimit);
     pitchPid = (kpPitch * errorPitch) + (kiPitch * integralPitch) - (kdPitch * gyroY);
 
-    const float errorYaw = yawDesired - yawIMU;
-    if (throttleDesired >= 50) {
-        integralYaw += errorYaw * dt;
-    }
+    const float errorYaw = normalizeAngleDegrees(yawDesired - yawIMU);
+    integralYaw += errorYaw * dt;
     integralYaw = constrain(integralYaw, -integralLimit, integralLimit);
     yawPid = (kpYaw * errorYaw) + (kiYaw * integralYaw) - (kdYaw * gyroZ);
 }

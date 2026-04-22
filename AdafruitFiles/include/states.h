@@ -10,6 +10,7 @@ enum DroneState {
 };
 
 extern DroneState state;
+extern bool droneArmed;
 
 const char *stateName();
 void setState(DroneState newState);

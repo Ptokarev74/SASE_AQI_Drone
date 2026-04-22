@@ -73,9 +73,11 @@ The active pin map is in `AdafruitFiles/include/hardware_config.h`.
 
 1. Starts USB serial at `115200`.
 2. Initializes Bluetooth, motors, IMU, and sensors.
-3. Creates two FreeRTOS tasks:
+   - If the IMU fails, `flightSystemReady` stays false and flight commands are rejected.
+3. Creates three FreeRTOS tasks:
    - `flightTask` on `FLIGHT_CORE` / core `1`
    - `sensorTask` on `SENSOR_CORE` / core `0`
+   - `telemetryTask` on `SENSOR_CORE` / core `0`
 4. Leaves Arduino `loop()` idle with a 1 second delay.
 
 The global `dt` is declared in `main.cpp` and exposed through `main.h`. `flightTask` updates it each loop.
@@ -94,7 +96,6 @@ Each loop:
 4. Calls `updateState()`.
 5. Calls `calculatePID()`.
 6. Calls `mixMotors()`.
-7. Sends telemetry every `TELEMETRY_PERIOD_MS`, currently `500 ms`.
 
 If the loop finishes early, it delays for the remainder of the 2.5 ms period. If it overruns, it yields.
 
@@ -108,8 +109,10 @@ Sensor polling behavior:
 
 - Barometer updates every sensor-task loop.
 - VL53L0X ToF updates every `50 ms`.
+- ToF readings are treated as healthy only when the driver reports a valid range status and the distance is within plausible bounds.
 - HC-SR04 ultrasonic trigger starts every `60 ms`.
 - `publishSensorSnapshot()` copies latest readings into a shared `SensorSnapshot`.
+- `areSensorsReady()` derives live sensor health from the protected shared snapshot.
 - Access to the shared snapshot is protected with an ESP32 `portMUX_TYPE`.
 
 `SensorSnapshot` is defined in `AdafruitFiles/include/sensors.h` and includes:
@@ -141,12 +144,17 @@ Rules:
 - `\r` is ignored.
 - Receive buffer resets if it exceeds 256 characters.
 - Invalid JSON is printed to USB serial and ignored.
-- If no Bluetooth activity occurs for `BLUETOOTH_TIMEOUT_MS`, currently `5000 ms`, `bluetoothConnected` becomes `false`.
-- `bluetoothSendJson()` also marks Bluetooth as connected because successful writes count as activity in the current implementation.
+- If no inbound control activity occurs for `BLUETOOTH_TIMEOUT_MS`, currently `5000 ms`, `bluetoothConnected` becomes `false`.
+- Outbound telemetry does not refresh the Bluetooth timeout.
+- `heartbeat` and `ping` messages refresh the control-link timeout without changing flight state.
 
 Supported actions are handled in `AdafruitFiles/src/states.cpp`:
 
-- `takeoff`
+- `arm` (only accepted from `IDLE` when the IMU, control link, and at least one sensor are healthy)
+- `disarm`
+- `takeoff` (only accepted from `IDLE` when armed, IMU ready, the control link is active, and at least one sensor is healthy)
+- `heartbeat`
+- `ping`
 - `cancel`
 - `program_control`
 - `land`
@@ -160,7 +168,7 @@ Supported actions are handled in `AdafruitFiles/src/states.cpp`:
 - `stop_pitch`
 - `stop_roll`
 
-Important behavior: except for `takeoff`, commands are ignored while the drone is in `IDLE`.
+Important behavior: except for `arm`, `disarm`, and a valid `takeoff`, commands are ignored while the drone is in `IDLE`.
 
 ## State Machine
 
@@ -181,7 +189,11 @@ Behavior:
 - `USERCNTRL` and `PRGMCNTRL` currently hold whatever command targets are set.
 - `LANDING` zeros attitude targets and ramps throttle down from the starting throttle over `4000 ms`.
 - Landing ends early and returns to `IDLE` if ultrasonic distance is valid and at or below `20 cm`.
+- Landing now accepts either ultrasonic or ToF distance at or below `20 cm` as ground detection.
+- If ground is not detected, landing ramps throttle down over `4000 ms`, briefly holds a low throttle, then stops the motors after the bounded landing timeout; `disarm` is still the explicit immediate stop path.
 - If Bluetooth disconnects while not `IDLE` or `LANDING`, the firmware automatically enters `LANDING`.
+- If the IMU becomes unavailable during runtime, flight is disabled and motors are stopped.
+- If all sensors become unhealthy while armed in `IDLE`, the firmware clears the armed flag before takeoff can start.
 
 ## IMU and Attitude
 
@@ -191,6 +203,8 @@ Implemented in `AdafruitFiles/src/imu.cpp`.
 - Main attitude report: `SH2_GAME_ROTATION_VECTOR` at `2500 us`.
 - Gyro report: `SH2_GYROSCOPE_CALIBRATED` at `2500 us`.
 - Linear acceleration report is enabled at `5000 us`, but current code does not use it.
+- If the BNO08x reports a reset during runtime, the firmware marks the IMU unavailable and disables flight until recalibration/reboot.
+- If rotation-vector or gyro reports go stale for more than `100 ms`, `imuReady` becomes false and the flight task stops the motors.
 - On initialization, the firmware averages up to 20 rotation-vector samples over up to 3 seconds to set roll, pitch, and yaw offsets.
 - Quaternion-to-Euler conversion lives in `AdafruitFiles/src/utils.cpp`.
 
@@ -214,12 +228,12 @@ Current defaults:
 - Yaw: `kp=2.0`, `ki=0.0`, `kd=0.05`
 - Integral limit: `200`
 
-The integrators only accumulate when `throttleDesired >= 50`.
+PID output and integrators are held at zero until `throttleDesired >= PID_ACTIVE_THROTTLE_OFFSET_US`, currently `50 us`. Yaw error wraps across the `-180/180` degree boundary.
 
 Motor output is implemented in `AdafruitFiles/src/motors.cpp`.
 
 - `throttleDesired` is an offset above `PWM_OFF_US`.
-- In `IDLE`, all motors are written to `PWM_OFF_US`.
+- In `IDLE`, or below `PID_ACTIVE_THROTTLE_OFFSET_US`, all motors are written to `PWM_OFF_US`.
 - Otherwise the base PWM is `PWM_OFF_US + throttleDesired`.
 - Motor mix order is front-right, back-right, back-left, front-left:
 
@@ -234,7 +248,7 @@ frontLeft  = base - rollPid - pitchPid - yawPid;
 
 Implemented in `AdafruitFiles/src/telemetry.cpp`.
 
-Sent every `500 ms` from `flightTask` as newline-delimited JSON over Bluetooth.
+Sent every `500 ms` from a low-priority `telemetryTask` as newline-delimited JSON over Bluetooth.
 
 Fields currently sent:
 
@@ -245,15 +259,25 @@ Fields currently sent:
 - `target_pitch`
 - `target_roll`
 - `throttle`
+- `armed`
 - `battery` hardcoded to `100`
 - `altitude_m`
 - `pressure_hpa`
 - `ultrasonic_cm`
 - `tof_cm`
 - `sensor_ok`
+- `barometer_ok`
+- `ultrasonic_ok`
+- `tof_ok`
+- `imu_ok`
+- `flight_ready`
+- `sensors_ready`
+- `sensor_age_ms`
+- `flight_age_ms`
 - `bt_connected`
 
-`sensor_ok` is true if any one of barometer, ultrasonic, or ToF reports OK.
+`sensor_ok` and `sensors_ready` are true if any one of barometer, ultrasonic, or ToF reports OK.
+Barometer health is based on recent successful pressure reads, not only startup detection.
 
 ## PC Bridge
 
@@ -261,15 +285,17 @@ Fields currently sent:
 
 Behavior:
 
-- Connects to `COM7` at `9600`.
+- Connects to `COM7` at `9600` by default; `SASE_DRONE_PORT` and `SASE_DRONE_BAUD` can override those values.
 - Background thread reads newline-delimited serial data.
+- Background heartbeat thread sends `{"action":"heartbeat","value":0}` once per second only while a bridge API client has touched `/api/status` or `/api/command` recently. `SASE_OPERATOR_TIMEOUT` controls the operator-presence window and defaults to `3.0` seconds.
 - JSON telemetry updates `latest_drone_status`.
 - Plain text serial lines are saved as `last_message`.
+- Access to `latest_drone_status` is protected with a thread lock because Flask handlers and the serial listener share it.
 - `GET /api/status` returns latest telemetry.
 - `POST /api/command` sends compact command JSON to the drone.
-- `GET /` renders `index.html`.
+- `GET /` returns bridge metadata as JSON.
 
-Note: there is no `AdafruitFiles/templates/index.html` visible in the current file list. `TeensyNewFiles/templates/index.html` exists and may be the older UI template this bridge expected.
+There is currently no browser UI template under `AdafruitFiles/templates/`; the bridge is API-first.
 
 ## Common Edit Areas
 
@@ -285,7 +311,6 @@ Note: there is no `AdafruitFiles/templates/index.html` visible in the current fi
 
 - The root `README.md` still describes an older BLE bridge/PWA stack under `TeensyOldFiles/`.
 - `TeensyNewFiles/context.md` describes a Teensy 4.1 setup and should not be treated as current for `AdafruitFiles`.
-- The Python bridge comment still says "Teensy Bluetooth COM port", but the active firmware target is the Metro ESP32-S3.
 - Battery telemetry is currently placeholder data.
 - AQI sensor telemetry is not currently present in the active `AdafruitFiles` firmware despite the project name.
 - Real ESC, motor direction, PID signs, and failsafe behavior need hardware validation before flight.

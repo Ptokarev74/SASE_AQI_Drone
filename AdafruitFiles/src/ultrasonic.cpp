@@ -15,6 +15,7 @@ static float latestUltrasonicCm = 9999.0f;
 static bool latestUltrasonicOk = false;
 
 static void IRAM_ATTR ultrasonicEchoISR() {
+    // Capture pulse edges in the ISR; distance math stays in the task context.
     const uint32_t nowUs = micros();
     const int level = gpio_get_level((gpio_num_t)ULTRASONIC_ECHO_PIN);
 
@@ -51,9 +52,11 @@ void startUltrasonicMeasurement() {
     portEXIT_CRITICAL(&ultrasonicMux);
 
     if (busy) {
+        // Do not retrigger while waiting for an echo or timeout.
         return;
     }
 
+    // HC-SR04 requires a 10 us trigger pulse.
     digitalWrite(ULTRASONIC_TRIG_PIN, HIGH);
     delayMicroseconds(10);
     digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
@@ -85,10 +88,17 @@ void updateUltrasonic() {
         return;
     }
 
-    if (!ready || endUs <= startUs) {
+    if (!ready) {
         return;
     }
 
+    if (endUs <= startUs) {
+        latestUltrasonicCm = 9999.0f;
+        latestUltrasonicOk = false;
+        return;
+    }
+
+    // Sound travels out and back; 0.01715 cm/us is half the speed of sound.
     latestUltrasonicCm = (float)(endUs - startUs) * 0.01715f;
     latestUltrasonicOk = latestUltrasonicCm > 0.0f && latestUltrasonicCm < 500.0f;
 }

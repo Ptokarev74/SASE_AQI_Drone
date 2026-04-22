@@ -15,3 +15,13 @@ void quaternionToEuler(float r, float i, float j, float k, float &roll, float &p
     const float cosyCosp = 1.0f - 2.0f * (j * j + k * k);
     yaw = atan2f(sinyCosp, cosyCosp) * RAD_TO_DEG;
 }
+
+float normalizeAngleDegrees(float angle) {
+    while (angle > 180.0f) {
+        angle -= 360.0f;
+    }
+    while (angle < -180.0f) {
+        angle += 360.0f;
+    }
+    return angle;
+}
